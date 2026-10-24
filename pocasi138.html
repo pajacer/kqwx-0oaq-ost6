@@ -1,0 +1,2445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Weather</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #f7f9fc;
+    --text: #17202b;
+    --muted: #64748b;
+    --border: #e3e8ef;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+    --accent: #2f6fed;
+    --accent-soft: rgba(47,111,237,.12);
+    --danger: #e0603a;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1219;
+      --surface: #161c26;
+      --surface-2: #1b2230;
+      --text: #e8edf5;
+      --muted: #93a1b5;
+      --border: #263040;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+      --accent-soft: rgba(47,111,237,.2);
+      --danger: #ff8a66;
+    }
+  }
+
+
+  .header-actions { display:flex; align-items:center; gap:8px; }
+  .help-button { white-space:nowrap; padding:5px 10px; min-width:38px; font-size:20px; line-height:1.1; }
+  .hour-extra { margin-top:3px; font-size:11px; line-height:1.25; color:var(--muted); overflow-wrap:anywhere; }
+  .hour-precip { margin-top:4px; font-size:11px; line-height:1.25; }
+  .day { touch-action: pan-y; }
+  @media (max-width:380px) { .forecast.cols-6 .hour-extra, .forecast.cols-6 .hour-precip { font-size:10px; } }
+  .help-panel { margin: 0 0 18px; padding: clamp(14px, 3vw, 22px); max-width:100%; }
+  .help-panel[hidden] { display:none; }
+  .help-panel h2 { font-size:20px; margin:0 0 8px; }
+  .help-panel h3 { font-size:16px; margin:20px 0 6px; }
+  .help-panel p { margin:8px 0; }
+  .help-panel ul { padding-left:22px; margin:8px 0; }
+  .help-panel li { margin:5px 0; }
+  .help-panel a { color:var(--accent); overflow-wrap:anywhere; }
+  .help-top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .help-version { color:var(--muted); font-size:12px; }
+  @media (max-width:380px) { .help-button { padding:7px 9px; } .header-actions { gap:5px; } }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    padding: clamp(16px, 4vw, 32px) clamp(12px, 4vw, 20px) 56px;
+    background:
+      radial-gradient(1200px 420px at 50% -220px, var(--accent-soft), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+      "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol";
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  main { max-width: 520px; margin: 0 auto; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .today-date {
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+
+  form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  input, button {
+    font: inherit;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    transition: border-color .15s ease, box-shadow .15s ease, opacity .15s ease, color .15s ease;
+  }
+
+  input {
+    flex: 1 1 160px;
+    min-width: 0;
+    padding: 11px 14px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  input::placeholder { color: var(--muted); }
+  input:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  button {
+    padding: 11px 18px;
+    background: var(--accent);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .55; cursor: default; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  button.ghost {
+    padding: 11px 13px;
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--muted);
+    font-size: 16px;
+  }
+  button.ghost:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+
+  button.lang {
+    padding: 7px 12px;
+    font-size: 13px;
+    letter-spacing: .06em;
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  button.lang:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+  button.lang b { color: var(--accent); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .current {
+    padding: clamp(18px, 5vw, 24px);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 18px;
+  }
+  .current::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--accent);
+  }
+
+  .place { font-size: 16px; font-weight: 600; }
+  .region { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .selected-hour { font-size:13px; color:var(--muted); margin-top:4px; font-variant-numeric:tabular-nums; }
+  .weather-heading { display:flex; align-items:center; justify-content:center; gap:10px; margin:10px 0 4px; }
+  .weather-heading .icon { margin:0; }
+  .weather-heading .cond { margin:0; text-align:left; }
+  .section-break { grid-column:1 / -1; height:0; margin:0; padding:0; }
+  .sun-visibility { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:7px; text-align:left; }
+  .sun-visibility .sun-times { display:flex; flex-direction:column; justify-content:center; gap:7px; }
+  .sun-visibility .sun-times > div { display:flex; flex-wrap:wrap; align-items:center; gap:4px; text-align:left; }
+  .sun-visibility .sun-times b { display:inline; }
+  .visibility-cell { display:flex; flex-direction:column; justify-content:center; min-width:0; }
+  .wind-cell .gust-line { display:block; margin-top:5px; font-size:11px; color:var(--muted); }
+  .wind-cell .gust-line b { font-size:13px; }
+  .moon-row { grid-column:1 / -1; display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:5px 12px; white-space:normal; font-size:12px; }
+  .moon-row > span { display:inline-flex; align-items:center; gap:3px; }
+  .moon-row #moonphase { font-weight:600; color:var(--text); }
+  @media(max-width:380px) { .moon-row { gap:5px 8px; font-size:11px; } .sun-visibility .sun-times > div { gap:3px; } }
+
+  .gps {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 12px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .gps > span { cursor: help; white-space: nowrap; }
+  .gps .below { color: var(--danger); font-weight: 600; }
+
+  .icon { font-size: clamp(38px, 11vw, 44px); line-height: 1; margin: 12px 0 4px; }
+  .icon, .day .ico, .wind-arrow { cursor: help; }
+  .icon[title]:hover, .day .ico[title]:hover { opacity: .75; }
+
+  .temp-row { display:flex; align-items:baseline; justify-content:center; gap:8px; flex-wrap:wrap; }
+  .temp-feels-inline { font-size:clamp(14px, 4vw, 17px); font-weight:500; color:var(--muted); letter-spacing:0; white-space:nowrap; }
+  .temp {
+    font-size: clamp(42px, 13vw, 52px);
+    font-weight: 300;
+    letter-spacing: -.02em;
+    color: var(--accent);
+  }
+
+  .cond { font-size: 15px; margin-top: 2px; }
+
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+    gap: 12px 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    text-align:center;
+  }
+  .meta > div { min-width: 0; }
+  .meta b { display: block; color: var(--text); font-weight: 600; font-size: 14px; overflow-wrap:anywhere; }
+  .meta .meta-label { display:inline; }
+
+  .wind-arrow { display: inline-block; font-size: 15px; }
+
+  .forecast-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  .section-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    margin: 0 0 0 2px;
+  }
+
+  .segmented {
+    display: inline-flex;
+    padding: 3px;
+    gap: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .segmented button {
+    padding: 5px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    color: var(--muted);
+    min-height: 0;
+  }
+  .segmented button:hover { color: var(--accent); opacity: 1; }
+  .segmented button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .forecast-controls {
+    display: flex;
+    gap: 7px;
+    margin: 0 0 12px;
+  }
+  .forecast-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .forecast-row-combined { width: 100%; justify-content: space-between; gap: 8px; flex-wrap: nowrap; }
+  .forecast-choice { display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .forecast-row-label { display: none; }
+  .forecast-choice .segmented { gap: 1px; padding: 2px; }
+  .forecast-choice .segmented button { padding: 5px 7px; font-size: 12px; }
+  #graph-toggle { align-self: center; border: 1px solid var(--border, #ccd3dd); border-radius: 8px; padding: 6px 10px; background: var(--surface-2); color: inherit; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  #graph-toggle[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .forecast.chart-mode { display: block; padding: 8px 0; overflow-x: auto; position: relative; }
+  .chart-scroll-wrap { position: relative; width: max-content; min-width: 100%; }
+  .chart-fixed-axes { position: sticky; left: 0; width: 100%; height: 0; z-index: 5; pointer-events: none; }
+  .chart-fixed-axis { position: absolute; top: 0; height: auto; overflow: visible; background: transparent; }
+  .chart-fixed-axis.left { left: 0; width: 30px; }
+  .chart-fixed-axis.right { right: 0; width: 30px; }
+  .weather-chart { width: 100%; min-width: 0; height: auto; display: block; }
+  .chart-legend { display: flex; justify-content: center; flex-wrap: nowrap; gap: 12px; white-space: nowrap; width: max-content; min-width: 100%; font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart-key { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+  .forecast {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .forecast.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .forecast.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .forecast.cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+
+  .day {
+    padding: 10px 4px;
+    text-align: center;
+    background: var(--surface-2);
+    border-top: 3px solid var(--accent);
+    border-radius: 12px;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    width: 100%;
+    display: block;
+    white-space: normal;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .day:hover { transform: translateY(-2px); opacity: 1; }
+  .day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .day[aria-pressed="true"] {
+    box-shadow: 0 0 0 2px var(--accent) inset;
+    background: var(--accent-soft);
+  }
+  .day-head, .day-mini, .day-sun { display:flex; justify-content:space-between; gap:5px; margin-top:6px; font-size:11px; color:var(--muted); white-space:nowrap; }
+  .day-sun { font-size:10px; }
+  .day-temps { display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+  .day .name, .day .date { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .day .date { opacity: .75; }
+  .day .ico { font-size: 18px; margin: 5px 0 4px; }
+  .day .hi, .day .lo { display: inline-block; vertical-align: middle; font-size: 14px; font-weight: 600; }
+  .day .temp-icon { filter: grayscale(1); opacity: .55; }
+  .day .lo { color: var(--muted); }
+  .hour-precip { display: flex; align-items: center; justify-content: center; gap: 2px; white-space: nowrap; font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  .forecast.cols-6 .day { padding: 8px 2px; }
+  .forecast.cols-6 .day .name, .forecast.cols-6 .day .date { font-size: 10px; }
+  .forecast.cols-6 .day .ico { font-size: 16px; margin: 4px 0 3px; }
+  .forecast.cols-6 .day .hi, .forecast.cols-6 .day .lo { font-size: 12px; }
+
+  .results {
+    list-style: none;
+    margin: -8px 0 18px;
+    padding: 6px;
+    display: none;
+  }
+  .results.open { display: block; }
+  .results li + li { margin-top: 4px; }
+  .results button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 9px 12px;
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+    font-weight: 400;
+  }
+  .results button:hover { border-color: var(--accent); opacity: 1; }
+  .results .r-ico { font-size: 16px; flex: none; }
+  .results .r-main { flex: 1; min-width: 0; }
+  .results .r-name { font-weight: 600; }
+  .results .r-sub {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .results .r-elev { font-size: 13px; color: var(--muted); flex: none; }
+
+  .trend { display: inline-block; font-size: 14px; }
+  .trend.up { color: #2f9e6f; }
+  .trend.down { color: var(--danger); }
+
+  .detail-toggle {
+    margin-top: 14px;
+    padding: 7px 14px;
+    font-size: 13px;
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .detail-toggle:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+  .detail-toggle[aria-expanded="true"] { background: var(--accent); border-color: transparent; color: #fff; }
+
+  .details {
+    display: none;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 12px 10px;
+    text-align: left;
+  }
+  .details.open { display: grid; }
+  .details .d-group-title { grid-column: 1 / -1; margin-top: 4px; padding-bottom: 5px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .details .d-item { min-width: 0; }
+  .details .d-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .details .d-value {
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 1px;
+    overflow-wrap: anywhere;
+  }
+  .details .d-sub { font-size: 12px; color: var(--muted); }
+
+  .day-panel {
+    margin-top: 12px;
+    padding: 14px 16px 16px;
+    text-align: left;
+    border-top: 3px solid var(--accent);
+  }
+  .day-panel[hidden] { display: none; }
+  .day-panel { touch-action: pan-y; }
+  #current { touch-action: pan-y; }
+  .day-panel .dp-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .day-panel .dp-ico { font-size: 26px; line-height: 1; }
+  .day-panel .dp-when { font-size: 15px; font-weight: 600; }
+  .day-panel .dp-cond { font-size: 13px; color: var(--muted); }
+  .day-panel .dp-date { font-size: 12px; color: var(--muted); }
+  .day-panel .dp-temp { margin-left: auto; font-size: 22px; font-weight: 700; }
+  .day-panel .dp-temp small { font-size: 14px; font-weight: 500; color: var(--muted); }
+  .day-panel .dp-close {
+    margin-left: 6px;
+    padding: 2px 9px;
+    font-size: 14px;
+    line-height: 1.4;
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--muted);
+  }
+  .day-panel .dp-close:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+  .day-panel .dp-grid .d-group-title { grid-column: 1 / -1; margin-top: 4px; padding-bottom: 5px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .day-panel .dp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: 12px 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .day-panel .dp-more {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+  .day-panel .dp-more-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .day-panel .dp-hint { margin-top: 12px; font-size: 12px; color: var(--muted); }
+
+  .icon, .day .ico, .dp-ico, .r-ico, .d-label > span, .meta > div > span:first-child {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif;
+    font-variant-emoji: emoji;
+  }
+  .wind-arrow, .trend, .detail-toggle #detail-caret, .dp-close {
+    font-variant-emoji: text;
+  }
+
+  .status {
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted);
+    min-height: 20px;
+    margin-top: 16px;
+    overflow-wrap: anywhere;
+  }
+  .status.error { color: var(--danger); }
+
+  .loading { opacity: .5; }
+
+  @media (max-width: 520px) {
+    .forecast.cols-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .forecast.cols-6 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 380px) {
+    body { font-size: 14px; }
+    .forecast.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .forecast.cols-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    form > input { flex: 1 1 100%; }
+    form > button[type="submit"] { flex: 1 1 auto; }
+  }
+  @media (min-width: 900px) {
+    main { max-width: 560px; }
+  }
+
+  @media (hover: none) {
+    button { min-height: 44px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="t-title">Weather</h1>
+    <div class="header-actions">
+      <button type="button" class="help-button" id="help-toggle" aria-expanded="false" aria-controls="help-panel">ⓘ</button>
+      <button type="button" class="lang" id="lang" aria-label="Switch language">🌐 <b id="lang-code">EN</b></button>
+    </div>
+  </header>
+
+  <section class="card help-panel" id="help-panel" hidden aria-label="Nápověda aplikace">
+    <div class="help-top"><h2 id="help-title">Nápověda a informace</h2><button type="button" id="help-close" aria-label="Zavřít nápovědu">✕</button></div>
+    <div class="help-version" id="help-version">Verze aplikace 1.3.8 · dokumentace 24. 10. 2026</div>
+    <div id="help-content"></div>
+  </section>
+
+  <p class="today-date" id="today-date">—</p>
+
+  <form id="search" autocomplete="off">
+    <input id="q" type="text" placeholder="Search a city…" aria-label="City name" />
+    <button type="submit" id="go">Search</button>
+    <button type="button" class="ghost" id="geo" title="Use my current location" aria-label="Use my current location">📍</button>
+  </form>
+
+  <ul class="results card" id="results" hidden></ul>
+
+  <section class="card current" id="current" aria-live="polite">
+    <div class="place" id="place">—</div>
+    <div class="region" id="region"></div>
+    <div class="selected-hour" id="selected-hour" aria-live="polite">—</div>
+    <div class="gps" id="gps" title=""></div>
+    <div class="weather-heading"><span class="icon" id="icon" title="">·</span><span class="cond" id="cond"></span></div>
+    <div class="temp-row"><div class="temp" id="temp">—</div><span class="temp-feels-inline" id="feels-inline">(—)</span></div>
+    <div class="meta overview-grid">
+      <div><span id="t-dew">🌡️ Rosný bod</span><b id="dew">—</b></div>
+      <div><span id="t-hum">💧 Humidity</span><b id="hum">—</b></div>
+      <div><span id="t-cloud">☁️ Oblačnost</span><b id="cloud">—</b></div>
+      <div><span id="t-precip">🌧️ Srážky</span><b id="precip">—</b></div>
+      <div><span id="t-precip-prob">☔ Pravděpodobnost srážek</span><b id="precip-prob">—</b></div>
+      <div><span id="t-pressure">🎚️ Pressure</span><b id="pressure">—</b></div>
+      <div class="wind-cell"><span id="t-wind">💨 Vítr</span><b id="wind">—</b><span class="gust-line"><span id="t-gusts">🌬️ Nárazy větru</span> <b id="gusts">—</b></span></div>
+      <div class="visibility-cell"><span id="t-visibility">👁️ Dohlednost</span><b id="visibility">—</b></div>
+      <div class="sun-visibility">
+        <div class="sun-times">
+          <div><span title="Sunrise" id="i-sunrise">🌅</span><span id="t-sunrise">Východ</span><b id="sunrise">—</b></div>
+          <div><span title="Sunset" id="i-sunset">🌇</span><span id="t-sunset">Západ</span><b id="sunset">—</b></div>
+        </div>
+      </div>
+      <div class="section-break" aria-hidden="true"></div>
+      <div class="moon-row"><span class="moon-heading">🌙 <span id="t-moon">Měsíc</span></span><span title="Moonrise">🌔 <span id="t-moonrise">Východ</span> <span id="moonrise">—</span></span><span title="Moonset">🌘 <span id="t-moonset">Západ</span> <span id="moonset">—</span></span><span title="Moon phase"><span id="i-moonphase">🌕</span> <span id="t-moonphase">Fáze</span> <span id="moonphase">—</span></span></div>
+    </div>
+    <button type="button" class="detail-toggle" id="detail-toggle" aria-expanded="false" aria-controls="details">
+      <span id="t-details">Detailed weather</span> <span id="detail-caret">▾</span>
+    </button>
+    <div class="details" id="details" role="region" aria-label="Detailed weather"></div>
+  </section>
+
+  <div class="forecast-head">
+    <p class="section-label" id="t-forecast">Hourly forecast · 24 hours</p>
+  </div>
+  <div class="forecast-controls" id="view-switch">
+    <div class="forecast-row forecast-row-combined">
+      <div class="forecast-choice">
+        <span class="forecast-row-label" id="hourly-label">Hodinová</span>
+        <div class="segmented" id="hour-switch" role="group" aria-label="Hourly forecast range">
+          <button type="button" data-view="24h" aria-pressed="true" id="v-24h">24 h</button>
+          <button type="button" data-view="48h" aria-pressed="false" id="v-48h">48 h</button>
+          <button type="button" data-view="72h" aria-pressed="false" id="v-72h">72 h</button>
+          <button type="button" data-view="96h" aria-pressed="false" id="v-96h">96 h</button>
+        </div>
+      </div>
+      <div class="forecast-choice">
+        <span class="forecast-row-label" id="daily-label">Denní</span>
+        <div class="segmented" id="day-switch" role="group" aria-label="Daily forecast range">
+          <button type="button" data-view="3d" aria-pressed="false" id="v-3d">3 d</button>
+          <button type="button" data-view="9d" aria-pressed="false" id="v-9d">9 d</button>
+          <button type="button" data-view="16d" aria-pressed="false" id="v-16d">16 d</button>
+        </div>
+      </div>
+      <button type="button" id="graph-toggle" aria-pressed="false">Graf</button>
+    </div>
+  </div>
+  <div class="forecast" id="forecast"></div>
+
+  <section class="card day-panel" id="day-panel" role="region" hidden></section>
+
+  <p class="status" id="status"></p>
+</main>
+
+<script>
+const CONDITIONS = {
+  0:  { icon: "☀️", color: "#f0a02a", en: "Clear sky",        cs: "Jasno" },
+  1:  { icon: "🌤️", color: "#f0a02a", en: "Mainly clear",     cs: "Skoro jasno" },
+  2:  { icon: "⛅", color: "#6f8dbb", en: "Partly cloudy",    cs: "Polojasno" },
+  3:  { icon: "☁️", color: "#7a8899", en: "Overcast",         cs: "Zataženo" },
+  45: { icon: "🌫️", color: "#8b94a3", en: "Fog",              cs: "Mlha" },
+  48: { icon: "🌫️", color: "#8b94a3", en: "Rime fog",         cs: "Námrazová mlha" },
+  51: { icon: "🌦️", color: "#3f8fd4", en: "Light drizzle",    cs: "Slabé mrholení" },
+  53: { icon: "🌦️", color: "#3f8fd4", en: "Drizzle",          cs: "Mrholení" },
+  55: { icon: "🌦️", color: "#3f8fd4", en: "Heavy drizzle",    cs: "Silné mrholení" },
+  56: { icon: "🌧️", color: "#4aa3c8", en: "Freezing drizzle", cs: "Mrznoucí mrholení" },
+  57: { icon: "🌧️", color: "#4aa3c8", en: "Freezing drizzle", cs: "Mrznoucí mrholení" },
+  61: { icon: "🌧️", color: "#2f7fd6", en: "Light rain",       cs: "Slabý déšť" },
+  63: { icon: "🌧️", color: "#2f7fd6", en: "Rain",             cs: "Déšť" },
+  65: { icon: "🌧️", color: "#2565b8", en: "Heavy rain",       cs: "Silný déšť" },
+  66: { icon: "🌧️", color: "#4aa3c8", en: "Freezing rain",    cs: "Mrznoucí déšť" },
+  67: { icon: "🌧️", color: "#4aa3c8", en: "Freezing rain",    cs: "Mrznoucí déšť" },
+  71: { icon: "🌨️", color: "#68a9d8", en: "Light snow",       cs: "Slabé sněžení" },
+  73: { icon: "🌨️", color: "#68a9d8", en: "Snow",             cs: "Sněžení" },
+  75: { icon: "❄️", color: "#68a9d8", en: "Heavy snow",       cs: "Silné sněžení" },
+  77: { icon: "🌨️", color: "#68a9d8", en: "Snow grains",      cs: "Sněhová zrna" },
+  80: { icon: "🌦️", color: "#2f7fd6", en: "Rain showers",     cs: "Dešťové přeháňky" },
+  81: { icon: "🌦️", color: "#2f7fd6", en: "Rain showers",     cs: "Dešťové přeháňky" },
+  82: { icon: "⛈️", color: "#2565b8", en: "Violent showers",  cs: "Prudké přeháňky" },
+  85: { icon: "🌨️", color: "#68a9d8", en: "Snow showers",     cs: "Sněhové přeháňky" },
+  86: { icon: "🌨️", color: "#68a9d8", en: "Snow showers",     cs: "Sněhové přeháňky" },
+  95: { icon: "⛈️", color: "#7a5cd0", en: "Thunderstorm",     cs: "Bouřka" },
+  96: { icon: "⛈️", color: "#7a5cd0", en: "Thunderstorm",     cs: "Bouřka s kroupami" },
+  99: { icon: "⛈️", color: "#7a5cd0", en: "Thunderstorm",     cs: "Silná bouřka s kroupami" }
+};
+
+const I18N = {
+  en: {
+    locale: "en-GB",
+    code: "EN",
+    langSwitchTitle: "Switch to Czech",
+    title: "Weather",
+    placeholder: "City, peak, or GPS coordinates…",
+    searchLabel: "City, place or coordinates",
+    search: "Search",
+    geoTitle: "Use my current location",
+    feels: "Feels like",
+    humidity: "Humidity", dewPoint: "Dew point", cloudCover: "Cloud cover", precipitation: "Precipitation", visibility: "👁️ Visibility",
+    pressure: "Pressure",
+    trendUp: "Rising",
+    trendDown: "Falling",
+    trendSteady: "Steady",
+    trendTitle: (word, delta) => `${word} — ${delta} hPa over the last 3 hours`,
+    trendUnknown: "Trend unavailable",
+    wind: "Wind",
+    windFrom: "from",
+    windFromFull: dir => `Wind blowing from the ${dir}`,
+    calm: "Calm",
+    sunrise: "Sunrise",
+    sunset: "Sunset",
+    moon: "Moon",
+    forecast3: "3-day forecast",
+    forecast9: "9-day forecast",
+    forecast24: "Next 24 hours",
+    maxDaysLabel: "Max. forecast days",
+    maxHoursLabel: "Max. forecast hours",
+    tab3: "3d",
+    tab9: "9d",
+    tab24: "24h",
+    tab3Title: "3-day forecast",
+    tab9Title: "9-day forecast",
+    tab24Title: "Hourly forecast for the next 24 hours",
+    rangeLabel: "Forecast range",
+    now: "Now",
+    detailsShow: "Detailed weather",
+    detailsHide: "Hide details",
+    detailsLabel: "Detailed weather",
+    dayPanelLabel: "Selected period",
+    closeLabel: "Close",
+    tapHint: "Turn on “Detailed weather” above for more parameters.",
+    moreTitle: "Detailed",
+    dewPoint: "Dew point",
+    cloudCover: "Cloud cover",
+    visibility: "👁️ Visibility",
+    gusts: "Wind gusts",
+    precipitation: "Precipitation",
+    precipChance: "Chance of rain",
+    precipSum: "Daily total",
+    uvIndex: "UV index",
+    surfacePressure: "Surface pressure",
+    sunshine: "Sunshine",
+    daylight: "Daylight",
+    dayNight: "Day / night",
+    daytime: "Daytime",
+    nighttime: "Night",
+    maxWind: "Max wind today",
+    feelsRange: "Feels like range",
+    snowfall: "Snowfall",
+    detailGroups: { temp: "Temperature & humidity", precip: "Precipitation & snow", wind: "Wind", atmosphere: "Atmosphere", sun: "Sun & radiation", storm: "Storm risk", ground: "Ground conditions" },
+    wetBulb: "Wet-bulb temperature", rain: "Rain", showers: "Showers", snowDepth: "Snow depth", precipHours: "Hours with precipitation", humidityRange: "Humidity min / mean / max", dewRange: "Dew point min / mean / max", pressureRange: "Sea-level pressure min / mean / max", cloudLayers: "Low / mid / high clouds", windMean: "Mean wind", windMin: "Minimum wind", radiation: "Solar radiation", radiationSum: "Daily solar energy", evapotranspiration: "Evapotranspiration", referenceET: "Reference evapotranspiration", vapourDeficit: "Vapour pressure deficit", cape: "CAPE (storm potential)", freezingLevel: "Freezing level", soilTemp: "Soil temperature (0–7 cm)", soilMoisture: "Soil moisture (0–7 cm)", uvClear: "Clear-sky UV index", rainHours: "Hours with precipitation",
+    uvLevels: ["Low", "Moderate", "High", "Very high", "Extreme"],
+    unlimited: "Unlimited",
+    hoursShort: "h",
+    minutesShort: "min",
+    today: "Today",
+    gpsTitle: "GPS coordinates of this place",
+    above: v => `⛰ ${v} m above sea level`,
+    below: v => `⬇ ${v} m below sea level`,
+    elevUnknown: "Elevation unavailable",
+    high: "High",
+    low: "Low",
+    loading: "Loading…",
+    locating: "Locating…",
+    detecting: "Detecting your approximate location…",
+    approxNote: t => `Approximate location from your network · updated ${t}`,
+    defaultNote: t => `Location unknown — showing Prague · updated ${t}`,
+    requesting: "Requesting location permission…",
+    live: t => `Live data from Open-Meteo · updated ${t}`,
+    offline: "Live data unavailable — showing sample data for Prague.",
+    noResults: n => `No results for "${n}".`,
+    noGeo: "Geolocation is not supported by this browser.",
+    denied: "Location permission denied — search for a city instead.",
+    geoFail: "Could not determine your location.",
+    myLocation: "My location",
+    pragueName: "Prague",
+    pragueRegion: "Prague, Czechia",
+    coordPlace: "Selected point",
+    matches: "Matches",
+    featureTypes: {
+      MT: ["⛰️", "Mountain"], PK: ["🏔️", "Peak"], PKS: ["🏔️", "Peaks"],
+      HLL: ["⛰️", "Hill"], VLC: ["🌋", "Volcano"], RDGE: ["⛰️", "Ridge"],
+      PASS: ["🏔️", "Mountain pass"], CLF: ["🧗", "Cliff"], ISL: ["🏝️", "Island"],
+      LK: ["🏞️", "Lake"], STM: ["🏞️", "Stream"], FLLS: ["💧", "Waterfall"],
+      GLCR: ["🧊", "Glacier"], CAVE: ["🕳️", "Cave"], FRST: ["🌲", "Forest"],
+      BCH: ["🏖️", "Beach"], CAPE: ["🌊", "Cape"], PRK: ["🌳", "Park"],
+      AIRP: ["✈️", "Airport"], CSTL: ["🏰", "Castle"], MNMT: ["🗿", "Monument"],
+      RSRT: ["🏨", "Resort"], SPNG: ["♨️", "Spring"], VAL: ["🏞️", "Valley"],
+      PPL: ["🏙️", "City"], PPLA: ["🏙️", "Regional capital"], PPLC: ["🏛️", "Capital city"],
+      PPLX: ["🏘️", "Neighbourhood"], ADM1: ["🗺️", "Region"], ADM2: ["🗺️", "District"]
+    },
+    featureDefault: ["📍", "Place"],
+    dirs: ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"],
+    dirsFull: ["north","north-northeast","northeast","east-northeast","east","east-southeast","southeast","south-southeast","south","south-southwest","southwest","west-southwest","west","west-northwest","northwest","north-northwest"]
+  },
+  cs: {
+    locale: "cs-CZ",
+    code: "CS",
+    langSwitchTitle: "Přepnout do angličtiny",
+    title: "Počasí",
+    placeholder: "Město, vrchol nebo GPS souřadnice…",
+    searchLabel: "Město, místo nebo souřadnice",
+    search: "Hledat",
+    geoTitle: "Použít moji polohu",
+    feels: "Pocitově",
+    humidity: "Vlhkost", dewPoint: "Rosný bod", cloudCover: "Oblačnost", precipitation: "Srážky", visibility: "Dohlednost",
+    pressure: "Tlak",
+    trendUp: "Stoupá",
+    trendDown: "Klesá",
+    trendSteady: "Setrvalý",
+    trendTitle: (word, delta) => `${word} — ${delta} hPa za poslední 3 hodiny`,
+    trendUnknown: "Trend není dostupný",
+    wind: "Vítr",
+    windFrom: "od",
+    windFromFull: dir => `Vítr vane od ${dir}`,
+    calm: "Bezvětří",
+    sunrise: "Východ",
+    sunset: "Západ",
+    moon: "Měsíc",
+    forecast3: "Předpověď na 3 dny",
+    forecast9: "Předpověď na 9 dní",
+    forecast24: "Následujících 24 hodin",
+    maxDaysLabel: "Max. délka předpovědi ve dnech",
+    maxHoursLabel: "Max. délka předpovědi v hodinách",
+    tab3: "3d",
+    tab9: "9d",
+    tab24: "24h",
+    tab3Title: "Předpověď na 3 dny",
+    tab9Title: "Předpověď na 9 dní",
+    tab24Title: "Hodinová předpověď na následujících 24 hodin",
+    rangeLabel: "Rozsah předpovědi",
+    now: "Nyní",
+    detailsShow: "Detailní počasí",
+    detailsHide: "Skrýt detaily",
+    detailsLabel: "Detailní počasí",
+    dayPanelLabel: "Vybrané období",
+    closeLabel: "Zavřít",
+    tapHint: "Zapněte výše „Detailní počasí“ pro další parametry.",
+    moreTitle: "Detailně",
+    dewPoint: "Rosný bod",
+    cloudCover: "Oblačnost",
+    visibility: "Dohlednost",
+    gusts: "Nárazy větru",
+    precipitation: "Srážky",
+    precipChance: "Pravděpodobnost srážek",
+    precipSum: "Denní úhrn",
+    uvIndex: "UV index",
+    surfacePressure: "Tlak na povrchu",
+    sunshine: "Slunečno",
+    daylight: "Délka dne",
+    dayNight: "Den / noc",
+    daytime: "Je den",
+    nighttime: "Je noc",
+    maxWind: "Max. vítr dnes",
+    feelsRange: "Pocitově min–max",
+    snowfall: "Sněžení",
+    detailGroups: { temp: "Teplota a vlhkost", precip: "Srážky a sníh", wind: "Vítr", atmosphere: "Atmosféra", sun: "Slunce a záření", storm: "Riziko bouřek", ground: "Povrch a půda" },
+    wetBulb: "Teplota vlhkého teploměru", rain: "Déšť", showers: "Přeháňky", snowDepth: "Výška sněhu", precipHours: "Hodiny se srážkami", humidityRange: "Vlhkost min / průměr / max", dewRange: "Rosný bod min / průměr / max", pressureRange: "Tlak na hladině min / průměr / max", cloudLayers: "Nízká / střední / vysoká oblačnost", windMean: "Průměrný vítr", windMin: "Minimální vítr", radiation: "Sluneční záření", radiationSum: "Denní energie slunečního záření", evapotranspiration: "Evapotranspirace", referenceET: "Referenční evapotranspirace", vapourDeficit: "Deficit tlaku vodní páry", cape: "CAPE (potenciál bouřek)", freezingLevel: "Hladina mrazu", soilTemp: "Teplota půdy (0–7 cm)", soilMoisture: "Vlhkost půdy (0–7 cm)", uvClear: "UV index za jasné oblohy", rainHours: "Hodiny se srážkami",
+    uvLevels: ["Nízký", "Střední", "Vysoký", "Velmi vysoký", "Extrémní"],
+    unlimited: "Neomezená",
+    hoursShort: "h",
+    minutesShort: "min",
+    today: "Dnes",
+    gpsTitle: "GPS souřadnice tohoto místa",
+    above: v => `⛰ ${v} m nad mořem`,
+    below: v => `⬇ ${v} m pod úrovní moře`,
+    elevUnknown: "Nadmořská výška není dostupná",
+    high: "Maximum",
+    low: "Minimum",
+    loading: "Načítání…",
+    locating: "Zjišťuji polohu…",
+    detecting: "Zjišťuji přibližnou polohu…",
+    approxNote: t => `Přibližná poloha podle sítě · aktualizováno ${t}`,
+    defaultNote: t => `Poloha není známá — zobrazena Praha · aktualizováno ${t}`,
+    requesting: "Žádám o povolení polohy…",
+    live: t => `Živá data z Open-Meteo · aktualizováno ${t}`,
+    offline: "Živá data nejsou dostupná — zobrazena ukázková data pro Prahu.",
+    noResults: n => `Pro „${n}“ nebyly nalezeny výsledky.`,
+    searchShort: "Zadejte alespoň 2 znaky.",
+    searchFail: "Vyhledávání nebo načtení počasí selhalo. Zkontrolujte připojení a zkuste to znovu.",
+    noGeo: "Tento prohlížeč nepodporuje geolokaci.",
+    denied: "Přístup k poloze byl zamítnut — zkuste vyhledat město.",
+    geoFail: "Polohu se nepodařilo zjistit.",
+    myLocation: "Moje poloha",
+    pragueName: "Praha",
+    pragueRegion: "Hlavní město Praha, Česko",
+    coordPlace: "Vybraný bod",
+    matches: "Nalezená místa",
+    featureTypes: {
+      MT: ["⛰️", "Hora"], PK: ["🏔️", "Vrchol"], PKS: ["🏔️", "Vrcholy"],
+      HLL: ["⛰️", "Kopec"], VLC: ["🌋", "Sopka"], RDGE: ["⛰️", "Hřeben"],
+      PASS: ["🏔️", "Horské sedlo"], CLF: ["🧗", "Skalní stěna"], ISL: ["🏝️", "Ostrov"],
+      LK: ["🏞️", "Jezero"], STM: ["🏞️", "Potok"], FLLS: ["💧", "Vodopád"],
+      GLCR: ["🧊", "Ledovec"], CAVE: ["🕳️", "Jeskyně"], FRST: ["🌲", "Les"],
+      BCH: ["🏖️", "Pláž"], CAPE: ["🌊", "Mys"], PRK: ["🌳", "Park"],
+      AIRP: ["✈️", "Letiště"], CSTL: ["🏰", "Hrad"], MNMT: ["🗿", "Památník"],
+      RSRT: ["🏨", "Resort"], SPNG: ["♨️", "Pramen"], VAL: ["🏞️", "Údolí"],
+      PPL: ["🏙️", "Město"], PPLA: ["🏙️", "Krajské město"], PPLC: ["🏛️", "Hlavní město"],
+      PPLX: ["🏘️", "Čtvrť"], ADM1: ["🗺️", "Kraj"], ADM2: ["🗺️", "Okres"]
+    },
+    featureDefault: ["📍", "Místo"],
+    dirs: ["S","SSV","SV","VSV","V","VJV","JV","JJV","J","JJZ","JZ","ZJZ","Z","ZSZ","SZ","SSZ"],
+    dirsFull: ["severu","severo-severovýchodu","severovýchodu","východo-severovýchodu","východu","východo-jihovýchodu","jihovýchodu","jiho-jihovýchodu","jihu","jiho-jihozápadu","jihozápadu","západo-jihozápadu","západu","západo-severozápadu","severozápadu","severo-severozápadu"]
+  }
+};
+
+const FALLBACK = {
+  place: "Praha",
+  region: "Hlavní město Praha, Česko",
+  feature: "PPLC",
+  lat: 50.0755,
+  lon: 14.4378,
+  elevation: 202,
+  current: {
+    temperature_2m: 17.8, apparent_temperature: 17.2, relative_humidity_2m: 68,
+    wind_speed_10m: 9.4, wind_direction_10m: 235, pressure_msl: 1018.6, weather_code: 3,
+    surface_pressure: 993.9, dew_point_2m: 11.6, cloud_cover: 82, visibility: 24000,
+    wind_gusts_10m: 18.4, precipitation: 0.2, snowfall: 0, is_day: 1
+  },
+  trend: { delta: -1.2, dir: "down" },
+  daily: {
+    time: ["2026-09-30","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07","2026-10-08"],
+    weather_code: [3, 61, 80, 2, 1, 3, 63, 2, 0],
+    temperature_2m_max: [19.4, 17.1, 18.6, 20.2, 21.0, 19.8, 16.9, 18.4, 20.1],
+    temperature_2m_min: [11.2, 10.4, 11.0, 11.9, 12.4, 11.6, 9.8, 10.7, 11.3],
+    apparent_temperature_max: [18.6, 16.2, 17.9, 19.5, 20.4, 19.0, 15.8, 17.6, 19.4],
+    apparent_temperature_min: [9.8, 9.1, 9.7, 10.5, 11.2, 10.3, 8.4, 9.3, 10.1],
+    wind_direction_10m_dominant: [235, 190, 230, 310, 20, 45, 180, 215, 240],
+    wind_speed_10m_max: [13.0, 15.2, 18.4, 12.1, 10.6, 11.8, 16.9, 13.5, 11.2],
+    wind_gusts_10m_max: [30.6, 34.2, 41.0, 27.4, 22.8, 25.6, 38.1, 29.7, 24.3],
+    uv_index_max: [4.05, 2.6, 3.1, 4.4, 4.8, 3.9, 2.2, 3.4, 4.6],
+    precipitation_sum: [0.0, 4.2, 7.8, 0.4, 0.0, 0.1, 6.3, 0.2, 0.0],
+    precipitation_probability_max: [5, 72, 88, 18, 4, 12, 80, 22, 3],
+    sunshine_duration: [37576, 12400, 8900, 31200, 39800, 26400, 9800, 28700, 40100],
+    daylight_duration: [42164, 41960, 41756, 41552, 41348, 41144, 40940, 40736, 40532],
+    sunrise: ["2026-09-30T07:02","2026-10-01T07:04","2026-10-02T07:05","2026-10-03T07:07","2026-10-04T07:09","2026-10-05T07:10","2026-10-06T07:12","2026-10-07T07:14","2026-10-08T07:15"],
+    sunset: ["2026-09-30T18:47","2026-10-01T18:45","2026-10-02T18:43","2026-10-03T18:40","2026-10-04T18:38","2026-10-05T18:36","2026-10-06T18:34","2026-10-07T18:32","2026-10-08T18:30"],
+    moonrise: ["2026-09-30T19:20","2026-10-01T19:45","2026-10-02T20:10","2026-10-03T20:38","2026-10-04T21:08","2026-10-05T21:42","2026-10-06T22:20","2026-10-07T23:02","2026-10-08T23:49"],
+    moonset: ["2026-09-30T09:20","2026-10-01T10:15","2026-10-02T11:12","2026-10-03T12:10","2026-10-04T13:10","2026-10-05T14:12","2026-10-06T15:15","2026-10-07T16:18","2026-10-08T17:19"],
+    moon_phase: [0.42,0.46,0.50,0.54,0.58,0.62,0.66,0.70,0.74]
+  }
+};
+
+const $ = id => document.getElementById(id);
+const els = {
+  form: $("search"), q: $("q"), go: $("go"), geo: $("geo"), lang: $("lang"),
+  langCode: $("lang-code"), todayDate: $("today-date"), current: $("current"),
+  place: $("place"), region: $("region"), gps: $("gps"), icon: $("icon"),
+  temp: $("temp"), cond: $("cond"), feels: $("feels"), hum: $("hum"),
+  pressure: $("pressure"), wind: $("wind"), sunrise: $("sunrise"), sunset: $("sunset"),
+  forecast: $("forecast"), results: $("results"), status: $("status"),
+  viewSwitch: $("view-switch"), graphToggle: $("graph-toggle"),
+  v3d: $("v-3d"), v9d: $("v-9d"), v16d: $("v-16d"),
+  v24h: $("v-24h"), v48h: $("v-48h"), v72h: $("v-72h"), v96h: $("v-96h"),
+  detailToggle: $("detail-toggle"), details: $("details"),
+  tDetails: $("t-details"), detailCaret: $("detail-caret"),
+  dayPanel: $("day-panel"),
+  tTitle: $("t-title"), tFeels: $("t-feels"), tHum: $("t-hum"),
+  tPressure: $("t-pressure"), tWind: $("t-wind"),
+  tSunrise: $("t-sunrise"), tSunset: $("t-sunset"),
+  tForecast: $("t-forecast")
+};
+
+function initialLang() {
+  const saved = localStorage.getItem("weather-lang");
+  if (saved === "cs" || saved === "en") return saved;
+  const prefs = (navigator.languages && navigator.languages.length)
+    ? navigator.languages : [navigator.language || "en"];
+  return prefs.some(l => String(l).toLowerCase().startsWith("cs")) ? "cs" : "en";
+}
+
+let lang = initialLang();
+let t = I18N[lang];
+let lastData = null;
+let lastStatus = null;
+let busy = false;
+const VIEWS = ["24h", "48h", "72h", "96h", "3d", "9d", "16d"];
+let view = VIEWS.includes(localStorage.getItem("weather-view")) ? localStorage.getItem("weather-view") : "24h";
+let graphMode = localStorage.getItem("weather-graph") === "1";
+let detailsOpen = localStorage.getItem("weather-details") === "1";
+let selected = null;
+let hourStart = 0;
+
+const round = n => (n === null || n === undefined || Number.isNaN(n)) ? "—" : Math.round(n);
+const conditionOf = code => CONDITIONS[code] || { icon: "·", color: "#2f6fed", en: "Unknown", cs: "Neznámo" };
+const label = code => conditionOf(code)[lang];
+const featureOf = code => (code && t.featureTypes[code]) || t.featureDefault;
+
+function parseCoords(text) {
+  const s = text.trim().replace(/[;|]/g, ",");
+  const dec = s.match(/^\s*(-?\d{1,3}(?:[.,]\d+)?)\s*°?\s*([NSns])?\s*[, ]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*°?\s*([EWew])?\s*$/);
+  if (!dec) return null;
+  let lat = parseFloat(dec[1].replace(",", "."));
+  let lon = parseFloat(dec[3].replace(",", "."));
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+  const latHem = dec[2] && dec[2].toUpperCase();
+  const lonHem = dec[4] && dec[4].toUpperCase();
+  if (latHem === "S") lat = -Math.abs(lat);
+  if (latHem === "N") lat = Math.abs(lat);
+  if (lonHem === "W") lon = -Math.abs(lon);
+  if (lonHem === "E") lon = Math.abs(lon);
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}
+
+function pressureTrend(data) {
+  const h = data.hourly;
+  if (!h || !h.time || !h.pressure_msl) return null;
+  const now = Date.now();
+  let latest = -1;
+  for (let i = 0; i < h.time.length; i++) {
+    const ts = new Date(h.time[i]).getTime();
+    if (!Number.isNaN(ts) && ts <= now) latest = i;
+  }
+  if (latest < 3) return null;
+  const nowVal = h.pressure_msl[latest];
+  const pastVal = h.pressure_msl[latest - 3];
+  if (typeof nowVal !== "number" || typeof pastVal !== "number") return null;
+  const delta = nowVal - pastVal;
+  const dir = delta >= 1 ? "up" : delta <= -1 ? "down" : "flat";
+  return { delta, dir };
+}
+
+function compass(deg) {
+  if (deg === null || deg === undefined || Number.isNaN(deg)) return null;
+  const i = Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
+  return { index: i, short: t.dirs[i], full: t.dirsFull[i], deg: Math.round(deg) };
+}
+
+function setAccent(color) {
+  document.documentElement.style.setProperty("--accent", color);
+  document.documentElement.style.setProperty("--accent-soft", hexToSoft(color));
+}
+
+function hexToSoft(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return `rgba(${r}, ${g}, ${b}, ${dark ? 0.22 : 0.14})`;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function dateInTimezone(timeZone, date = new Date()) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      year: "numeric", month: "2-digit", day: "2-digit"
+    }).formatToParts(date);
+    const part = key => parts.find(p => p.type === key)?.value;
+    return `${part("year")}-${part("month")}-${part("day")}`;
+  } catch {
+    const d = new Date(date);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+}
+function dayName(iso, index, timeZone) {
+  const d = new Date(iso + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return "—";
+  return iso === dateInTimezone(timeZone) ? t.today : d.toLocaleDateString(t.locale, { weekday: "short" });
+}
+
+function clockTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString(t.locale, { hour: "2-digit", minute: "2-digit" });
+}
+
+function shortDate(iso) {
+  const d = new Date(String(iso).length <= 10 ? iso + "T12:00:00" : iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(t.locale, { day: "numeric", month: "short" });
+}
+
+function fullDate(iso) {
+  const d = new Date(String(iso).length <= 10 ? iso + "T12:00:00" : iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const text = d.toLocaleDateString(t.locale, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function renderToday() {
+  const d = new Date();
+  const text = d.toLocaleDateString(t.locale, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+  els.todayDate.textContent = text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function elevationText(m) {
+  if (m === null || m === undefined || Number.isNaN(m)) return null;
+  const v = Math.round(m);
+  return { below: v < 0, text: v < 0 ? t.below(Math.abs(v)) : t.above(v) };
+}
+
+function renderGps(lat, lon, elevation) {
+  els.gps.innerHTML = "";
+  if (typeof lat === "number" && typeof lon === "number") {
+    const ns = lat >= 0 ? "N" : "S";
+    const ew = lon >= 0 ? "E" : "W";
+    const span = document.createElement("span");
+    span.textContent = `📌 ${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lon).toFixed(4)}° ${ew}`;
+    span.title = `${t.gpsTitle} — ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    els.gps.appendChild(span);
+  }
+  const elev = elevationText(elevation);
+  const span = document.createElement("span");
+  if (elev) {
+    span.textContent = elev.text;
+    if (elev.below) span.className = "below";
+  } else {
+    span.textContent = t.elevUnknown;
+  }
+  els.gps.appendChild(span);
+}
+
+function renderPressure(data) {
+  const value = (data.current && (data.current.pressure_msl !== undefined && data.current.pressure_msl !== null))
+    ? data.current.pressure_msl : null;
+  if (value === null) {
+    els.pressure.textContent = "—";
+    els.pressure.title = "";
+    return;
+  }
+  const trend = data.trend;
+  const hpa = `${Math.round(value)} hPa`;
+  if (!trend) {
+    els.pressure.textContent = hpa;
+    els.pressure.title = t.trendUnknown;
+    return;
+  }
+  const arrow = trend.dir === "up" ? "↗" : trend.dir === "down" ? "↘" : "→";
+  const word = trend.dir === "up" ? t.trendUp : trend.dir === "down" ? t.trendDown : t.trendSteady;
+  const cls = trend.dir === "up" ? "trend up" : trend.dir === "down" ? "trend down" : "trend";
+  const signed = (trend.delta >= 0 ? "+" : "−") + Math.abs(trend.delta).toFixed(1);
+  els.pressure.innerHTML = `${esc(hpa)} <span class="${cls}">${arrow}</span>`;
+  els.pressure.title = t.trendTitle(word, signed);
+}
+
+function duration(seconds) {
+  if (typeof seconds !== "number" || Number.isNaN(seconds)) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return `${h} ${t.hoursShort} ${m} ${t.minutesShort}`;
+}
+
+function uvLevel(v) {
+  if (typeof v !== "number") return "";
+  if (v < 3) return t.uvLevels[0];
+  if (v < 6) return t.uvLevels[1];
+  if (v < 8) return t.uvLevels[2];
+  if (v < 11) return t.uvLevels[3];
+  return t.uvLevels[4];
+}
+
+function renderDetails(data) {
+  const c = data.current || {};
+  const d = data.daily || {};
+  const num = v => typeof v === "number" && Number.isFinite(v);
+  const first = arr => Array.isArray(arr) && arr.length ? arr[0] : null;
+  const fmt = (v, digits=1) => num(v) ? Number(v).toFixed(digits) : null;
+  const groups = [];
+  const add = (group, icon, labelText, value, sub) => {
+    if (value === null || value === undefined || value === "") value = "-";
+    let bucket = groups.find(g => g.key === group);
+    if (!bucket) { bucket = { key: group, items: [] }; groups.push(bucket); }
+    bucket.items.push({ icon, labelText, value, sub });
+  };
+  const range = (min, mean, max, unit="°") => [min, mean, max].some(num) ? [min, mean, max].map(v => num(v) ? `${Math.round(v)}${unit}` : "—").join(" / ") : null;
+
+  add("temp", "🌡️", t.dewPoint, num(c.dew_point_2m) ? `${Math.round(c.dew_point_2m)}°` : null);
+  add("temp", "🌡️", t.feelsRange, num(first(d.apparent_temperature_min)) && num(first(d.apparent_temperature_max)) ? `${Math.round(first(d.apparent_temperature_min))}° / ${Math.round(first(d.apparent_temperature_max))}°` : null);
+  add("temp", "🌡️", t.wetBulb, num(c.wet_bulb_temperature_2m) ? `${Math.round(c.wet_bulb_temperature_2m)}°` : null);
+  add("temp", "💧", t.humidity, num(c.relative_humidity_2m) ? `${Math.round(c.relative_humidity_2m)} %` : null);
+  add("temp", "💧", t.humidityRange, range(first(d.relative_humidity_2m_min), first(d.relative_humidity_2m_mean), first(d.relative_humidity_2m_max), " %"));
+  add("temp", "🌡️", t.dewRange, range(first(d.dew_point_2m_min), first(d.dew_point_2m_mean), first(d.dew_point_2m_max)));
+
+  add("precip", "🌧️", t.precipitation, num(c.precipitation) ? `${fmt(c.precipitation)} mm` : null);
+  add("precip", "🌧️", t.rain, num(c.rain) ? `${fmt(c.rain)} mm` : null);
+  add("precip", "🌦️", t.showers, num(c.showers) ? `${fmt(c.showers)} mm` : null);
+  add("precip", "☔", t.precipChance, num(first(d.precipitation_probability_max)) ? `${Math.round(first(d.precipitation_probability_max))} %` : null);
+  add("precip", "🪣", t.precipSum, num(first(d.precipitation_sum)) ? `${fmt(first(d.precipitation_sum))} mm` : null);
+  add("precip", "🌧️", t.rain, num(first(d.rain_sum)) ? `${fmt(first(d.rain_sum))} mm` : null);
+  add("precip", "🌦️", t.showers, num(first(d.showers_sum)) ? `${fmt(first(d.showers_sum))} mm` : null);
+  add("precip", "⏱️", t.precipHours, num(first(d.precipitation_hours)) ? `${fmt(first(d.precipitation_hours))} h` : null);
+  add("precip", "❄️", t.snowfall, num(c.snowfall) && c.snowfall > 0 ? `${fmt(c.snowfall)} cm` : null);
+  add("precip", "❄️", t.snowfall, num(first(d.snowfall_sum)) ? `${fmt(first(d.snowfall_sum))} cm` : null);
+  add("precip", "🏔️", t.snowDepth, num(c.snow_depth) ? `${fmt(c.snow_depth, 2)} m` : null);
+
+  add("wind", "🌬️", t.gusts, num(c.wind_gusts_10m) ? `${Math.round(c.wind_gusts_10m)} km/h` : null);
+  add("wind", "💨", t.maxWind, num(first(d.wind_speed_10m_max)) ? `${Math.round(first(d.wind_speed_10m_max))} km/h` : null,
+    num(first(d.wind_gusts_10m_max)) ? `${t.gusts} ${Math.round(first(d.wind_gusts_10m_max))} km/h` : null);
+  add("wind", "💨", t.windMean, num(first(d.wind_speed_10m_mean)) ? `${Math.round(first(d.wind_speed_10m_mean))} km/h` : null);
+  add("wind", "💨", t.windMin, num(first(d.wind_speed_10m_min)) ? `${Math.round(first(d.wind_speed_10m_min))} km/h` : null);
+
+  add("atmosphere", "🎚️", t.pressure, num(c.pressure_msl) ? `${Math.round(c.pressure_msl)} hPa` : null);
+  add("atmosphere", "🎚️", t.surfacePressure, num(c.surface_pressure) ? `${Math.round(c.surface_pressure)} hPa` : null);
+  add("atmosphere", "🎚️", t.pressureRange, range(first(d.pressure_msl_min), first(d.pressure_msl_mean), first(d.pressure_msl_max), " hPa"));
+  add("atmosphere", "☁️", t.cloudCover, num(c.cloud_cover) ? `${Math.round(c.cloud_cover)} %` : null);
+  const clouds = [c.cloud_cover_low, c.cloud_cover_mid, c.cloud_cover_high];
+  add("atmosphere", "☁️", t.cloudLayers, clouds.some(num) ? clouds.map(v => num(v) ? `${Math.round(v)} %` : "—").join(" / ") : null);
+  add("atmosphere", "👁️", t.visibility, num(c.visibility) ? visibilityText(c.visibility) : "—");
+  add("atmosphere", "💨", t.vapourDeficit, num(c.vapour_pressure_deficit) ? `${fmt(c.vapour_pressure_deficit, 2)} kPa` : null);
+
+  add("sun", "🔆", t.uvIndex, num(first(d.uv_index_max)) ? fmt(first(d.uv_index_max)) : null, num(first(d.uv_index_max)) ? uvLevel(first(d.uv_index_max)) : null);
+  add("sun", "🔆", t.uvClear, num(c.uv_index_clear_sky) ? fmt(c.uv_index_clear_sky) : null);
+  add("sun", "☀️", t.radiation, num(c.shortwave_radiation) ? `${Math.round(c.shortwave_radiation)} W/m²` : null);
+  add("sun", "🌞", t.sunshine, num(first(d.sunshine_duration)) ? duration(first(d.sunshine_duration)) : null);
+  add("sun", "🕰️", t.daylight, num(first(d.daylight_duration)) ? duration(first(d.daylight_duration)) : null);
+  add("sun", "🌱", t.evapotranspiration, num(c.evapotranspiration) ? `${fmt(c.evapotranspiration, 2)} mm` : null);
+  add("sun", "🌱", t.referenceET, num(c.et0_fao_evapotranspiration) ? `${fmt(c.et0_fao_evapotranspiration, 2)} mm` : null);
+  add("sun", "☀️", t.radiationSum, num(first(d.shortwave_radiation_sum)) ? `${Math.round(first(d.shortwave_radiation_sum))} MJ/m²` : null);
+
+  add("storm", "⛈️", t.cape, num(c.cape) ? `${Math.round(c.cape)} J/kg` : null);
+
+  add("ground", "🌡️", t.soilTemp, num(c.soil_temperature_0_to_7cm) ? `${Math.round(c.soil_temperature_0_to_7cm)}°` : null);
+  add("ground", "💧", t.soilMoisture, num(c.soil_moisture_0_to_7cm) ? `${fmt(c.soil_moisture_0_to_7cm, 3)} m³/m³` : null);
+
+  if (c.is_day !== undefined && c.is_day !== null) add("sun", c.is_day ? "🌞" : "🌙", t.dayNight, c.is_day ? t.daytime : t.nighttime);
+
+  els.details.innerHTML = groups.map(g =>
+    `<div class="d-group-title">${esc(t.detailGroups[g.key])}</div>` +
+    g.items.map(it => `<div class="d-item"><div class="d-label"><span>${it.icon}</span>${esc(it.labelText)}</div><div class="d-value">${esc(it.value)}</div>${it.sub ? `<div class="d-sub">${esc(it.sub)}</div>` : ""}</div>`).join("")
+  ).join("");
+  updateDetailToggle();
+}
+
+function updateDetailToggle() {
+  els.details.classList.toggle("open", detailsOpen);
+  els.detailToggle.setAttribute("aria-expanded", detailsOpen ? "true" : "false");
+  els.tDetails.textContent = detailsOpen ? t.detailsHide : t.detailsShow;
+  els.detailCaret.textContent = detailsOpen ? "▴" : "▾";
+  els.details.setAttribute("aria-label", t.detailsLabel);
+}
+
+function toggleDetails() {
+  detailsOpen = !detailsOpen;
+  localStorage.setItem("weather-details", detailsOpen ? "1" : "0");
+  updateDetailToggle();
+  renderDayPanel();
+}
+
+function isNum(v) { return typeof v === "number" && !Number.isNaN(v); }
+
+function itemsHtml(items) {
+  return items.filter(it => it && it.value !== null && it.value !== undefined && it.value !== "")
+    .map(it =>
+      `<div class="d-item">` +
+        `<div class="d-label"><span>${it.icon}</span>${esc(it.labelText)}</div>` +
+        `<div class="d-value">${esc(it.value)}</div>` +
+        (it.sub ? `<div class="d-sub">${esc(it.sub)}</div>` : "") +
+      `</div>`
+    ).join("");
+}
+
+function item(icon, labelText, value, sub) {
+  return { icon, labelText, value, sub };
+}
+
+function visibilityText(m) {
+  if (!isNum(m)) return null;
+  const km = m / 1000;
+  if (km >= 50) return t.unlimited;
+  return `${km >= 10 ? Math.round(km) : km.toFixed(1)} km`;
+}
+
+function windText(speed, deg) {
+  if (!isNum(speed)) return null;
+  const dir = compass(deg);
+  return dir ? `${Math.round(speed)} km/h · ${t.windFrom} ${dir.short}` : `${Math.round(speed)} km/h`;
+}
+
+function selectTile(kind, index) {
+  if (selected && selected.kind === kind && selected.index === index) selected = null;
+  else selected = { kind, index };
+  updateTileSelection();
+  renderDayPanel();
+  if (selected) els.dayPanel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function updateTileSelection() {
+  Array.from(els.forecast.children).forEach((el, i) => {
+    const on = !!selected && selected.index === i;
+    el.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function clearSelection() {
+  selected = null;
+  updateTileSelection();
+  renderDayPanel();
+}
+
+function renderDayPanel() {
+  if (!selected || !lastData) {
+    els.dayPanel.hidden = true;
+    els.dayPanel.innerHTML = "";
+    return;
+  }
+  const html = selected.kind === "hour"
+    ? hourPanelHtml(lastData, selected.index)
+    : dayPanelHtml(lastData, selected.index);
+
+  if (!html) { els.dayPanel.hidden = true; return; }
+  els.dayPanel.innerHTML = html;
+  els.dayPanel.hidden = false;
+  els.dayPanel.setAttribute("aria-label", t.dayPanelLabel);
+  const close = els.dayPanel.querySelector(".dp-close");
+  if (close) close.addEventListener("click", clearSelection);
+}
+
+function panelShell(icon, when, dateText, cond, temp, basic, more) {
+  return (
+    `<div class="dp-head">` +
+      `<span class="dp-ico" title="${esc(cond)}">${icon}</span>` +
+      `<span><span class="dp-when">${esc(when)}</span><br>` +
+      (dateText ? `<span class="dp-date">${esc(dateText)}</span><br>` : "") +
+      `<span class="dp-cond">${esc(cond)}</span></span>` +
+      `<span class="dp-temp">${temp}</span>` +
+      `<button type="button" class="dp-close" title="${esc(t.closeLabel)}" aria-label="${esc(t.closeLabel)}">✕</button>` +
+    `</div>` +
+    `<div class="dp-grid">${basic}</div>` +
+    (detailsOpen
+      ? (more ? `<div class="dp-more"><div class="dp-more-title">${esc(t.moreTitle)}</div><div class="dp-grid" style="margin-top:0;padding-top:0;border-top:0">${more}</div></div>` : "")
+      : `<p class="dp-hint">${esc(t.tapHint)}</p>`)
+  );
+}
+
+function dayPanelHtml(data, i) {
+  const d = data.daily;
+  if (!d || !d.time || !d.time[i]) return "";
+  const code = d.weather_code[i];
+  const c = conditionOf(code);
+  els.dayPanel.style.borderTopColor = c.color;
+
+  const temp =
+    `${round(d.temperature_2m_max[i])}° <small>/ ${round(d.temperature_2m_min[i])}°</small>`;
+
+  const basic = itemsHtml([
+    item("🌅", t.sunrise, d.sunrise && clockTime(d.sunrise[i])),
+    item("🌇", t.sunset, d.sunset && clockTime(d.sunset[i])),
+    item("🌧️", t.precipSum, isNum(d.precipitation_sum && d.precipitation_sum[i]) ? `${Number(d.precipitation_sum[i]).toFixed(1)} mm` : null),
+    item("☔", t.precipChance, isNum(d.precipitation_probability_max && d.precipitation_probability_max[i]) ? `${Math.round(d.precipitation_probability_max[i])} %` : null),
+    item("💨", t.wind, windText(
+      d.wind_speed_10m_max && d.wind_speed_10m_max[i],
+      d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[i]))
+  ]);
+
+  const uv = d.uv_index_max && d.uv_index_max[i];
+  const fMax = d.apparent_temperature_max && d.apparent_temperature_max[i];
+  const fMin = d.apparent_temperature_min && d.apparent_temperature_min[i];
+
+  const more = itemsHtml([
+    item("🌡️", t.feelsRange, (isNum(fMax) && isNum(fMin)) ? `${Math.round(fMin)}° / ${Math.round(fMax)}°` : null),
+    item("🌬️", t.gusts, isNum(d.wind_gusts_10m_max && d.wind_gusts_10m_max[i])
+      ? `${Math.round(d.wind_gusts_10m_max[i])} km/h` : null),
+    item("🔆", t.uvIndex, isNum(uv) ? uv.toFixed(1) : null, isNum(uv) ? uvLevel(uv) : null),
+    item("🪣", t.precipSum, isNum(d.precipitation_sum && d.precipitation_sum[i])
+      ? `${d.precipitation_sum[i].toFixed(1)} mm` : null),
+    item("🌞", t.sunshine, duration(d.sunshine_duration && d.sunshine_duration[i])),
+    item("🕰️", t.daylight, duration(d.daylight_duration && d.daylight_duration[i]))
+  ]);
+
+  return panelShell(c.icon, dayName(d.time[i], i, data.timezone), fullDate(d.time[i]), label(code), temp, basic, more);
+}
+
+function hourPanelHtml(data, i) {
+  const h = data.hourly;
+  const idx = (typeof hourStart === "number" ? hourStart : 0) + i;
+  if (!h || !h.time || !h.time[idx]) return "";
+  const code = h.weather_code ? h.weather_code[idx] : null;
+  const c = conditionOf(code);
+  els.dayPanel.style.borderTopColor = c.color;
+
+  const at = key => (h[key] && h[key][idx] !== null && h[key][idx] !== undefined && Number.isFinite(Number(h[key][idx]))) ? Number(h[key][idx]) : null;
+  const fmt = (key, digits=1, unit="") => at(key) === null ? "-" : `${at(key).toFixed(digits)}${unit}`;
+  const fmtRound = (key, unit="") => at(key) === null ? "-" : `${Math.round(at(key))}${unit}`;
+  const fmtProb = key => at(key) === null ? "-" : `${Math.round(at(key))} %`;
+  const fmtDirection = key => at(key) === null ? "-" : `${compass(at(key))?.short || "-"} (${Math.round(at(key))}°)`;
+  // Meteor-style convention requested: during rain, show all three cloud layers as fully covered.
+  const raining = (at("rain") !== null && at("rain") > 0) ||
+    (at("showers") !== null && at("showers") > 0) ||
+    (at("precipitation") !== null && at("precipitation") > 0) ||
+    [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(Number(code));
+  const cloudLayer = key => raining ? "100 %" : fmtRound(key, " %");
+  const dt = new Date(h.time[idx]);
+  const weekday = Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString(t.locale, { weekday: "short" }) + " ";
+  const when = `${weekday}${clockTime(h.time[idx])}`;
+  const basic = itemsHtml([
+    item("🌡️", t.feels, at("apparent_temperature") === null ? "-" : `${Math.round(at("apparent_temperature"))}°`),
+    item("☔", t.precipChance, fmtProb("precipitation_probability")),
+    item("💨", t.wind, at("wind_speed_10m") === null ? "-" : `${Math.round(at("wind_speed_10m"))} km/h ${fmtDirection("wind_direction_10m")}`),
+    item("💦", t.humidity, fmtRound("relative_humidity_2m", " %"))
+  ]);
+
+  const groups = [
+    { key: "temp", items: [
+      ["🌡️", lang === "cs" ? "Teplota vzduchu" : "Air temperature", fmtRound("temperature_2m", "°")],
+      ["🌡️", t.dewPoint, fmtRound("dew_point_2m", "°")],
+      ["🌡️", t.wetBulb, fmtRound("wet_bulb_temperature_2m", "°")],
+      ["💧", t.humidity, fmtRound("relative_humidity_2m", " %")],
+      ["🌡️", lang === "cs" ? "Teplota povrchu" : "Surface temperature", fmtRound("surface_temperature", "°")]
+    ]},
+    { key: "precip", items: [
+      ["☔", t.precipChance, fmtProb("precipitation_probability")],
+      ["🌧️", t.precipitation, fmt("precipitation", 1, " mm")],
+      ["🌧️", t.rain, fmt("rain", 1, " mm")],
+      ["🌦️", t.showers, fmt("showers", 1, " mm")],
+      ["❄️", t.snowfall, fmt("snowfall", 1, " cm")],
+      ["🌧️", lang === "cs" ? "Typ srážek" : "Precipitation type", at("precipitation_type") === null ? "-" : ({0: lang === "cs" ? "Bez srážek" : "None", 1: lang === "cs" ? "Déšť" : "Rain", 3: lang === "cs" ? "Mrznoucí déšť" : "Freezing rain", 5: lang === "cs" ? "Sníh" : "Snow", 6: lang === "cs" ? "Mokrý sníh" : "Wet snow", 7: lang === "cs" ? "Déšť se sněhem" : "Rain and snow", 8: lang === "cs" ? "Ledové kroupy" : "Ice pellets"})[at("precipitation_type")] || String(at("precipitation_type"))],
+      ["🌧️", lang === "cs" ? "Pravděpodobnost deště" : "Rain probability", fmtProb("rain_probability")],
+      ["❄️", lang === "cs" ? "Pravděpodobnost sněžení" : "Snow probability", fmtProb("snowfall_probability")],
+      ["🧊", lang === "cs" ? "Mrznoucí déšť" : "Freezing rain probability", fmtProb("freezing_rain_probability")],
+      ["🧊", lang === "cs" ? "Ledové kroupy" : "Ice pellets probability", fmtProb("ice_pellets_probability")],
+      ["🏔️", t.snowDepth, fmt("snow_depth", 2, " m")],
+      ["💧", lang === "cs" ? "Vodní ekvivalent sněhu" : "Snow water equivalent", fmt("snowfall_water_equivalent", 1, " mm")]
+    ]},
+    { key: "wind", items: [
+      ["💨", t.wind, at("wind_speed_10m") === null ? "-" : `${Math.round(at("wind_speed_10m"))} km/h`],
+      ["🧭", lang === "cs" ? "Směr větru" : "Wind direction", fmtDirection("wind_direction_10m")],
+      ["🌬️", t.gusts, at("wind_gusts_10m") === null ? "-" : `${Math.round(at("wind_gusts_10m"))} km/h`],
+      ["💨", lang === "cs" ? "Vítr v 80 m" : "Wind at 80 m", at("wind_speed_80m") === null ? "-" : `${Math.round(at("wind_speed_80m"))} km/h`]
+    ]},
+    { key: "atmosphere", items: [
+      ["🎚️", t.pressure, fmtRound("pressure_msl", " hPa")],
+      ["🎚️", t.surfacePressure, fmtRound("surface_pressure", " hPa")],
+      ["☁️", t.cloudCover, fmtRound("cloud_cover", " %")],
+      ["☁️", lang === "cs" ? "Nízká oblačnost" : "Low clouds", cloudLayer("cloud_cover_low")],
+      ["☁️", lang === "cs" ? "Střední oblačnost" : "Mid-level clouds", cloudLayer("cloud_cover_mid")],
+      ["☁️", lang === "cs" ? "Vysoká oblačnost" : "High clouds", cloudLayer("cloud_cover_high")],
+      ["👁️", t.visibility, at("visibility") === null ? "-" : visibilityText(at("visibility"))],
+      ["💨", t.vapourDeficit, fmt("vapour_pressure_deficit", 2, " kPa")],
+      ["💧", lang === "cs" ? "Vodní pára v atmosféře" : "Atmospheric water vapour", fmt("total_column_integrated_water_vapour", 2, " kg/m²")]
+    ]},
+    { key: "sun", items: [
+      ["🔆", t.uvIndex, fmt("uv_index", 1)],
+      ["🔆", t.uvClear, fmt("uv_index_clear_sky", 1)],
+      ["☀️", t.radiation, fmtRound("shortwave_radiation", " W/m²")],
+      ["☀️", lang === "cs" ? "Přímé záření" : "Direct radiation", fmtRound("direct_radiation", " W/m²")],
+      ["🌤️", lang === "cs" ? "Rozptýlené záření" : "Diffuse radiation", fmtRound("diffuse_radiation", " W/m²")],
+      ["🌞", t.sunshine, fmt("sunshine_duration", 0, " s")],
+      ["🌱", t.evapotranspiration, fmt("evapotranspiration", 2, " mm")],
+      ["🌱", t.referenceET, fmt("et0_fao_evapotranspiration", 2, " mm")],
+      ["🌞", t.dayNight, at("is_day") === null ? "-" : (at("is_day") ? t.daytime : t.nighttime)]
+    ]},
+    { key: "storm", items: [
+      ["⛈️", t.cape, fmtRound("cape", " J/kg")],
+      ["⛈️", lang === "cs" ? "Pravděpodobnost bouřky" : "Thunderstorm probability", fmtProb("thunderstorm_probability")],
+      ["⚡", lang === "cs" ? "Potenciál blesků" : "Lightning potential", fmt("lightning_potential", 1)],
+      ["🌩️", lang === "cs" ? "Lifted Index" : "Lifted Index", fmt("lifted_index", 1)],
+      ["🌩️", lang === "cs" ? "Konvektivní inhibice (CIN)" : "Convective inhibition (CIN)", fmtRound("convective_inhibition", " J/kg")],
+      ["🌩️", lang === "cs" ? "Hladina mrazu" : "Freezing level", fmtRound("freezing_level_height", " m")],
+      ["🌩️", lang === "cs" ? "Výška mezní vrstvy" : "Boundary layer height", fmtRound("boundary_layer_height", " m")]
+    ]},
+    { key: "ground", items: [
+      ["🌡️", t.soilTemp, fmtRound("soil_temperature_0_to_7cm", "°")],
+      ["💧", t.soilMoisture, fmt("soil_moisture_0_to_7cm", 3, " m³/m³")],
+      ["💧", lang === "cs" ? "Odtok vody" : "Runoff", fmt("runoff", 2, " mm")],
+      ["❄️", lang === "cs" ? "Výška sněžení" : "Snowfall height", fmtRound("snowfall_height", " m")]
+    ]}
+  ];
+  const more = groups.map(g => `<div class="d-group-title">${esc(t.detailGroups[g.key])}</div>` + g.items.map(it =>
+    `<div class="d-item"><div class="d-label"><span>${it[0]}</span>${esc(it[1])}</div><div class="d-value">${esc(it[2])}</div></div>`
+  ).join("")).join("");
+
+  const temp = at("temperature_2m") === null ? "-" : `${Math.round(at("temperature_2m"))}°`;
+  return panelShell(c.icon, when, fullDate(h.time[idx]), label(code), temp, basic, more);
+}
+
+function renderHelp() {
+  const cs = lang === "cs";
+  const content = document.getElementById("help-content");
+  document.getElementById("help-title").textContent = cs ? "Nápověda a informace o aplikaci" : "Help and app information";
+  document.getElementById("help-toggle").textContent = "ⓘ";
+  document.getElementById("help-toggle").title = cs ? "Otevřít nápovědu" : "Open help";
+  document.getElementById("help-toggle").setAttribute("aria-label", cs ? "Otevřít nápovědu" : "Open help");
+  document.getElementById("help-version").textContent = cs ? "Verze aplikace 1.3.8 · dokumentace 24. 10. 2026" : "App version 1.3.8 · documentation 24 Oct 2026";
+  content.innerHTML = cs ? `
+    <h3>Co aplikace umí</h3>
+    <p>Responzivní přehled počasí pro vyhledané místo nebo polohu zařízení. Zobrazuje aktuální podmínky, podrobné meteorologické veličiny a hodinovou i denní předpověď. Rozložení se přizpůsobuje šířce telefonu, tabletu i počítače.</p>
+    <h3>Jak aplikaci používat</h3>
+    <ul><li><b>Vyhledávání:</b> zadejte alespoň 2 znaky názvu místa a vyberte výsledek. Pokud služba neodpoví, zobrazí se chyba místo zavádějících náhradních dat.</li><li><b>📍 Poloha:</b> použije polohu zařízení, pokud prohlížeč udělí oprávnění a stránka běží v prostředí, které podporuje geolokaci.</li><li><b>Hodinová předpověď:</b> zvolte 24, 48, 72 nebo 96 hodin. V základním i rozbaleném podrobném přehledu přejeďte vodorovně vlevo/vpravo pro přechod na následující/předchozí hodinovou předpověď; zobrazené meteorologické hodnoty se aktualizují pro vybranou hodinu.</li><li><b>Denní předpověď:</b> zvolte 3, 9 nebo 16 dní. Aplikace označuje „Dnes“ podle aktuálního data v časovém pásmu vybraného místa, nikoli podle pořadí záznamu v API. Dlaždice ukazují denní úhrn a pravděpodobnost srážek a pouze ikonami s časy také východ a západ Slunce.</li><li><b>Slunce a dohlednost:</b> časy východu a západu Slunce jsou nad sebou vedle dohlednosti. <b>Měsíc:</b> východ, západ a fáze se na úzkém displeji zalomí do více řádků.</li><li><b>Graf:</b> přepíná grafické zobrazení předpovědi. Klepnutím otevřete dlaždici. Pouze uvnitř otevřeného panelu přejeďte doleva nebo doprava pro otevření předchozí či následující dlaždice; gesto nefunguje na mřížce dlaždic ani v základním/podrobném přehledu.</li><li><b>Podrobné počasí:</b> rozbalte sekci pod aktuálním přehledem pro další veličiny.</li><li><b>🌐 Jazyk:</b> přepíná češtinu a angličtinu.</li></ul>
+    <h3>Novinky verze 1.3.8</h3><ul><li>Pořadí základních údajů: vítr včetně nárazů, dohlednost a Slunce.</li><li>Vítr a nárazy jsou seskupeny v jednom prvku; dohlednost a Slunce jsou vedle nich, pokud šířka displeje dovolí tři sloupce.</li><li>Východ a západ Slunce mají čas hned za popiskem.</li><li>Údaje o Měsíci zůstávají na samostatném dalším řádku a zalamují se podle dostupné šířky.</li></ul><h3>Starší změny verze 1.3.6</h3><ul><li>Pod názvem místa se zobrazuje datum a vybraná hodina; při vodorovném posouvání se čas průběžně aktualizuje.</li><li>Popis počasí je hned vedle ikony.</li><li>Za rychlostí a směrem větru jsou zobrazeny také nárazy větru.</li><li>Východ a západ Slunce jsou nad sebou vedle dohlednosti; řádek Měsíce se při nedostatku místa zalomí.</li><li>Dohlednost je označena ikonou oka.</li><li>Opravené zobrazení „Dnes“ podle kalendářního data v časovém pásmu místa.</li><li>Opravené vyhledávání: očištění vstupu, minimální délka dotazu a srozumitelná chyba při výpadku služby.</li><li>V základním přehledu má dohlednost jednoznačnou ikonu oka.</li><li>V detailu denní dlaždice se pravděpodobnost srážek zobrazuje pouze jednou; odstraněna duplicitní položka.</li></ul><h3>Podrobný slovník meteorologických veličin</h3>
+    <p><b>Teplota vzduchu (°C):</b> modelovaný stav vzduchu přibližně 2 m nad povrchem. Hodinová hodnota je odhad pro daný čas; denní minimum, průměr a maximum shrnují celý kalendářní den.</p>
+    <p><b>Pocitová teplota (°C):</b> odhad toho, jak teplotu vnímá člověk. Zohledňuje mimo jiné vítr, vlhkost a radiační podmínky; není to další přímé měření teploty.</p>
+    <p><b>Rosný bod (°C):</b> teplota, na kterou by se vzduch musel ochladit, aby při stávajícím obsahu vodní páry dosáhl nasycení. Čím je rosný bod blíže teplotě vzduchu, tím bývá relativní vlhkost vyšší; nízký rosný bod obvykle značí sušší vzduch.</p>
+    <p><b>Vlhká teplota (°C):</b> teplota dosažitelná odpařováním vody do vzduchu. Pomáhá popsat kombinaci tepla a vlhkosti a používá se při hodnocení tepelné zátěže.</p>
+    <p><b>Relativní vlhkost (%):</b> poměr aktuálního množství vodní páry k množství potřebnému k nasycení při stejné teplotě. Nejde o absolutní množství vody; teplejší vzduch může při stejné relativní vlhkosti obsahovat více páry.</p>
+    <p><b>Oblačnost (%):</b> odhad podílu oblohy zakrytého oblaky. Nízká, střední a vysoká oblačnost popisují různé výškové vrstvy; jejich součet nemusí být roven celkové oblačnosti, protože se vrstvy překrývají.</p>
+    <p><b>Srážky (mm):</b> očekávaný vodní ekvivalent srážek v daném časovém kroku; 1 mm odpovídá přibližně 1 litru vody na metr čtvereční. Déšť a přeháňky jsou dílčí složky. Denní součet sčítá očekávané množství za den.</p>
+    <p><b>Pravděpodobnost srážek (%):</b> modelový odhad pravděpodobnosti výskytu měřitelných srážek v daném období a oblasti. Neříká, kolik naprší ani že bude pršet po celou dobu. Pravděpodobnost deště, sněžení, mrznoucího deště, ledových krup a bouřky jsou odlišné specializované ukazatele.</p>
+    <p><b>Typ srážek:</b> klasifikace očekávaného druhu, například déšť, mrznoucí déšť, sníh, mokrý sníh či ledové kroupy. Kód může být nedostupný, pokud model druh srážek neurčil.</p>
+    <p><b>Sněžení (cm), vodní ekvivalent sněhu (mm), sněhová pokrývka (m) a výška sněžení (m):</b> jde o různé veličiny. Sněžení popisuje přírůstek sněhu, vodní ekvivalent množství vody obsažené ve sněhu, sněhová pokrývka hloubku na zemi a výška sněžení modelovanou výšku, ve které se sníh vyskytuje.</p>
+    <p><b>Tlak na hladinu moře (hPa, MSL):</b> tlak přepočtený na společnou hladinu, aby šel porovnávat mezi místy s různou nadmořskou výškou. <b>Povrchový tlak (hPa)</b> je tlak v místě a závisí také na nadmořské výšce. Trend tlaku je rozdíl modelových hodnot v čase, ne oficiální barometrické měření.</p>
+    <p><b>Vítr (km/h), směr (°) a nárazy (km/h):</b> rychlost větru je uváděna pro standardní výšku 10 m, pokud není uvedeno jinak. Směr značí, odkud vítr vane: 0° sever, 90° východ, 180° jih, 270° západ. Náraz je krátkodobé zesílení. Vítr v 80 m může pomoci posoudit proudění ve vyšší vrstvě.</p>
+    <p><b>Dohlednost (m/km):</b> modelovaný odhad vzdálenosti, na kterou lze v atmosféře rozeznat objekty. Snižovat ji může mlha, opar, srážky nebo částice ve vzduchu; skutečná místní dohlednost se může lišit.</p>
+    <p><b>UV index:</b> ukazatel intenzity erytémově účinného ultrafialového záření. Orientačně 0–2 nízký, 3–5 střední, 6–7 vysoký, 8–10 velmi vysoký a 11+ extrémní. UV za jasné oblohy je modelová referenční hodnota bez vlivu oblačnosti.</p>
+    <p><b>Sluneční záření (W/m²):</b> okamžitý tok energie dopadající na plochu. Krátkovlnné záření je celková sluneční složka; přímé záření přichází přímo od Slunce a rozptýlené je rozptýleno atmosférou. Denní součet záření vyjadřuje energii za den.</p>
+    <p><b>Doba slunečního svitu (s/h), délka dne a východ/západ Slunce:</b> sluneční svit je odhad doby se splněnou intenzitou přímého slunečního záření; délka dne je čas mezi východem a západem. Časy se počítají pro zvolené místo, datum a časové pásmo.</p>
+    <p><b>Deficit tlaku vodní páry (kPa):</b> rozdíl mezi tlakem nasycené páry a skutečným tlakem páry; vyšší hodnota obvykle značí větší potenciál pro odpařování a vysychání.</p>
+    <p><b>Celkový sloupcový obsah vodní páry (kg/m²):</b> množství vodní páry v pomyslném sloupci atmosféry nad jednotkou plochy. Popisuje zásobu vlhkosti v celé vrstvě atmosféry, ne jen u země.</p>
+    <p><b>Evapotranspirace (mm) a referenční ET₀ (mm):</b> odhad množství vody ztracené výparem z povrchu a transpirací rostlin. ET₀ je standardizovaný odhad pro referenční povrch, užitečný zejména v zemědělství a při zavlažování.</p>
+    <p><b>CAPE (J/kg):</b> dostupná konvektivní potenciální energie; vyšší hodnoty mohou podporovat silnější vzestupné proudy, pokud jsou splněny další podmínky. <b>Lifted Index (°C)</b> porovnává teplotu vzduchové částice s okolím ve vyšší hladině; záporné hodnoty obvykle značí větší nestabilitu. <b>CIN (J/kg)</b> vyjadřuje energii bránící částici vystoupat. Žádný z těchto údajů sám o sobě nepotvrzuje bouřku.</p>
+    <p><b>Hladina mrazu (m):</b> modelovaná výška, kde teplota okolního vzduchu dosahuje přibližně 0 °C. <b>Výška mezní vrstvy (m)</b> odhaduje výšku spodní vrstvy atmosféry ovlivněné povrchem.</p>
+    <p><b>Potenciál blesků:</b> modelový ukazatel podmínek spojených s elektrickou aktivitou bouřek; není to přesná předpověď počtu ani místa úderů blesku.</p>
+    <p><b>Teplota půdy (°C), půdní vlhkost (m³/m³) a odtok (mm):</b> teplota a objemový podíl vody v modelované vrstvě půdy 0–7 cm; odtok je modelovaný objem vody odtékající z povrchu za dané období.</p>
+    <p><b>Min./prům./max. a denní součty:</b> označují statistiku nebo akumulaci za daný den, nikoli nutně okamžitou hodnotu. Pomlčka znamená, že API pro daný čas či místo údaj neposkytlo.</p>
+    <h3>Aktuální hodnoty a hodinová předpověď</h3>
+    <ul><li><b>Teplota:</b> modelovaná teplota vzduchu přibližně ve výšce 2 m.</li><li><b>Pocitová teplota:</b> odhad vnímané teploty s vlivem větru, vlhkosti a dalších podmínek.</li><li><b>Rosný bod:</b> teplota, při které by se vzduch při daném obsahu vodní páry nasytil; vyšší rosný bod obvykle znamená vlhčí vzduch.</li><li><b>Vlhkost:</b> relativní vlhkost vzduchu v procentech.</li><li><b>Oblačnost:</b> odhad pokrytí oblohy oblačností v procentech; podrobnosti mohou rozlišovat nízkou, střední a vysokou oblačnost.</li><li><b>Srážky:</b> předpokládané množství v mm. Pravděpodobnost srážek je samostatný údaj a neznamená jistotu, že bude pršet právě ve vašem bodě.</li><li><b>Tlak:</b> tlak přepočtený na hladinu moře (MSL) a/nebo tlak u povrchu. Pro vývoj počasí se často sleduje zejména MSL.</li><li><b>Vítr:</b> rychlost se standardně uvádí v km/h; směr je azimut ve stupních, kde 0° znamená sever, 90° východ, 180° jih a 270° západ. Náraz větru je krátkodobě vyšší rychlost.</li><li><b>Dohlednost:</b> odhad vzdálenosti, na kterou lze rozeznat objekty, obvykle v metrech nebo kilometrech.</li><li><b>UV index:</b> ukazatel intenzity ultrafialového záření; vyšší hodnoty znamenají větší potřebu ochrany.</li><li><b>Východ a západ slunce:</b> vypočtené časy pro vybrané místo a datum.</li><li><b>CAPE / Lifted Index:</b> orientační ukazatele podmínek pro konvekci a bouřky; samy o sobě bouřku nezaručují.</li><li><b>Vlhká teplota, deficit tlaku vodní páry, evapotranspirace:</b> doplňkové meteorologické ukazatele využitelné například při hodnocení tepelné zátěže a výparu.</li></ul>
+    <h3>Aktuální hodnoty a hodinová předpověď</h3>
+    <p>Aktuální API poskytuje jen vybranou sadu veličin. Pokud některý údaj v aktuálním bloku chybí, aplikace se jej může pokusit doplnit z nejbližšího hodinového záznamu. Takto doplněná hodnota je modelová předpověď pro danou hodinu, nikoli samostatné měření v reálném čase. Pokud nejbližší hodinový záznam není dostatečně blízko nebo data chybí, zobrazí se pomlčka.</p>
+    <h3>Jak číst předpověď</h3>
+    <p>Jde o modelový odhad, nikoli záruku skutečného počasí. Nejistota obvykle roste s délkou předpovědi; lokální přeháňky, bouřky a vítr se mohou lišit i v rámci jednoho města. Denní hodnoty jsou zpravidla souhrny nebo extrémy za den, zatímco hodinové hodnoty popisují jednotlivé časové kroky.</p>
+    <h3>Zdroje dat</h3>
+    <ul><li><a href="https://open-meteo.com/en/docs" target="_blank" rel="noopener noreferrer">Open-Meteo Forecast API – dokumentace a proměnné</a></li><li><a href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noopener noreferrer">Open-Meteo Geocoding API – vyhledávání míst</a></li><li><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo – informace o zdrojích a modelech</a></li><li><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">Licence dat CC BY 4.0</a></li></ul>
+    <p><b>Uvedení zdroje:</b> Počasí poskytuje Open-Meteo. Data jsou modelová a poskytována bez záruky; podmínky a dostupnost se mohou měnit. Pro nekomerční použití Open-Meteo uvádí bezplatný přístup a vyžaduje uvedení zdroje.</p>
+    <h3>Verze aplikace</h3><p><b>1.3.8</b> – pořadí základních údajů bylo upraveno: vítr a nárazy, dohlednost, Slunce; Měsíc je na dalším řádku. Starší změny: denní dlaždice zobrazují denní úhrn a pravděpodobnost srážek a východ/západ Slunce ikonou a časem. V základním i podrobném přehledu přejetí vlevo/vpravo přepíná hodinovou předpověď včetně dohlednosti a údajů o Měsíci; otevřený panel dlaždice má vlastní gesto pro předchozí/následující dlaždici. Verze označuje sestavení aplikace, nikoli verzi API nebo meteorologického modelu.</p>
+    <p><b>Upozornění:</b> Aplikace slouží k informativnímu použití, nenahrazuje oficiální výstrahy ani odborné rozhodování při nebezpečném počasí.</p>` : `
+    <h3>What the app does</h3><p>A responsive weather overview for a searched place or device location. It shows current conditions, detailed meteorological variables, and hourly and daily forecasts. The layout adapts to phones, tablets, and desktop screens.</p>
+    <h3>How to use it</h3><ul><li><b>Search:</b> enter at least 2 characters and choose a result. If the service fails, the app shows an error rather than misleading fallback weather.</li><li><b>📍 Location:</b> uses device location if browser permission is granted and the environment supports geolocation.</li><li><b>Hourly forecast:</b> choose 24, 48, 72, or 96 hours. Swipe left/right in the basic or expanded detailed overview to move through hourly forecast values.</li><li><b>Daily forecast:</b> choose 3, 9, or 16 days. Daily tiles show precipitation amount and probability plus sunrise/sunset icons with times.</li><li><b>Chart:</b> switches forecast chart display. Tap a tile to open it. Only inside the opened tile panel, swipe left or right to open the previous or next tile; swiping does not navigate from the tile grid or the basic/detailed overview.</li><li><b>Detailed weather:</b> expand the section below the current overview for additional variables.</li><li><b>🌐 Language:</b> switches Czech and English.</li></ul>
+    <h3>Detailed meteorological glossary</h3>
+    <p><b>Air temperature (°C):</b> modeled air temperature at about 2 m above ground. Hourly values refer to a time step; daily minimum, mean and maximum summarize the day.</p>
+    <p><b>Feels-like temperature (°C):</b> an estimate of perceived warmth or cold, influenced by wind, humidity and radiation. It is not a separate thermometer reading.</p>
+    <p><b>Dew point (°C):</b> the temperature to which air must cool to become saturated at its current water-vapour content. A dew point close to air temperature generally indicates high relative humidity; a low dew point usually indicates drier air.</p>
+    <p><b>Wet-bulb temperature (°C):</b> the temperature achievable through evaporative cooling. It helps describe combined heat and humidity and can inform heat-stress assessment.</p>
+    <p><b>Relative humidity (%):</b> the ratio of actual water vapour to the amount needed for saturation at the same temperature. It is not the absolute amount of water in the air.</p>
+    <p><b>Cloud cover (%):</b> estimated fraction of sky covered by clouds. Low, mid-level and high cloud layers refer to different altitude bands and need not add up to total cloud cover because layers overlap.</p>
+    <p><b>Precipitation (mm):</b> expected water equivalent during a time step; 1 mm is approximately 1 litre per square metre. Rain and showers are components; a daily total accumulates expected precipitation over the day.</p>
+    <p><b>Precipitation probability (%):</b> modeled likelihood of measurable precipitation in a period and area. It does not indicate the amount or duration. Rain, snow, freezing-rain, ice-pellet and thunderstorm probabilities are separate specialized indicators.</p>
+    <p><b>Precipitation type:</b> classification such as rain, freezing rain, snow, wet snow or ice pellets. It may be unavailable if the model cannot determine a type.</p>
+    <p><b>Snowfall (cm), snow water equivalent (mm), snow depth (m), and snowfall height (m):</b> these are different quantities. They refer respectively to new snow, the water contained in snow, snow depth on the ground, and modeled height where snowfall occurs.</p>
+    <p><b>Mean sea-level pressure (hPa, MSL):</b> pressure adjusted to a common sea level so locations at different elevations can be compared. <b>Surface pressure</b> is pressure at the actual location and depends on elevation. Pressure trend is a change in modeled values, not necessarily a local barometer measurement.</p>
+    <p><b>Wind (km/h), direction (°), and gusts (km/h):</b> wind speed is normally given at 10 m unless stated otherwise. Direction indicates where wind comes from: 0° north, 90° east, 180° south, 270° west. Gusts are brief increases in speed; wind at 80 m describes a higher atmospheric layer.</p>
+    <p><b>Visibility (m/km):</b> modeled estimate of the distance at which objects can be distinguished. Fog, haze, precipitation and airborne particles can reduce it; local observed visibility may differ.</p>
+    <p><b>UV index:</b> measure of erythemally effective ultraviolet radiation. Roughly, 0–2 low, 3–5 moderate, 6–7 high, 8–10 very high and 11+ extreme. Clear-sky UV is a modeled reference without cloud reduction.</p>
+    <p><b>Solar radiation (W/m²):</b> instantaneous energy flux onto a surface. Shortwave radiation is the overall solar component; direct radiation comes straight from the Sun and diffuse radiation has been scattered by the atmosphere. Daily radiation sums represent energy over the day.</p>
+    <p><b>Sunshine duration (s/h), daylight duration, sunrise and sunset:</b> sunshine duration estimates time meeting a direct-sunlight threshold; daylight is the interval between sunrise and sunset. Times are calculated for the selected location, date and time zone.</p>
+    <p><b>Vapour-pressure deficit (kPa):</b> the difference between saturation vapour pressure and actual vapour pressure. Higher values usually indicate greater potential for evaporation and drying.</p>
+    <p><b>Total-column integrated water vapour (kg/m²):</b> water vapour contained in a vertical atmospheric column per unit area, rather than just near the ground.</p>
+    <p><b>Evapotranspiration (mm) and reference ET₀ (mm):</b> estimated water loss from evaporation and plant transpiration. ET₀ is a standardized reference-surface estimate used especially in agriculture and irrigation.</p>
+    <p><b>CAPE (J/kg):</b> convective available potential energy; higher values can support stronger updrafts when other conditions are met. <b>Lifted Index (°C)</b> compares a lifted parcel's temperature with its environment aloft; negative values generally indicate instability. <b>CIN (J/kg)</b> describes energy inhibiting parcel ascent. None of these alone confirms a thunderstorm.</p>
+    <p><b>Freezing level (m):</b> modeled altitude where ambient temperature is around 0 °C. <b>Boundary-layer height (m)</b> estimates the depth of the lower atmosphere influenced by the surface.</p>
+    <p><b>Lightning potential:</b> a modeled indicator of conditions associated with electrical activity in storms, not a precise prediction of strike count or location.</p>
+    <p><b>Soil temperature (°C), soil moisture (m³/m³), and runoff (mm):</b> modeled temperature and volumetric water content in the 0–7 cm soil layer; runoff is modeled water flowing off the surface during a period.</p>
+    <p><b>Min/mean/max and daily sums:</b> statistics or accumulated totals for the day, not necessarily instantaneous conditions. A dash means the API did not provide that value for the time or location.</p>
+    <h3>Current values and hourly forecast</h3><ul><li><b>Temperature:</b> modeled air temperature at about 2 m above ground.</li><li><b>Feels like:</b> estimate of perceived temperature influenced by wind, humidity, and other conditions.</li><li><b>Dew point:</b> temperature at which air would become saturated for its current water-vapour content; a higher dew point usually indicates more moisture.</li><li><b>Humidity:</b> relative humidity in percent.</li><li><b>Cloud cover:</b> estimated percentage of sky covered by clouds; details may separate low, mid-level, and high clouds.</li><li><b>Precipitation:</b> expected amount in mm. Probability is a separate estimate, not a guarantee of rain at your exact location.</li><li><b>Pressure:</b> mean sea-level pressure (MSL) and/or pressure at the surface.</li><li><b>Wind:</b> normally shown in km/h; direction is an azimuth in degrees (0° north, 90° east, 180° south, 270° west). Gusts are brief increases in speed.</li><li><b>Visibility:</b> estimated distance at which objects can be distinguished, usually in metres or kilometres.</li><li><b>UV index:</b> indicator of ultraviolet radiation intensity.</li><li><b>Sunrise and sunset:</b> shown vertically beside visibility. Moonrise, moonset, and phase wrap onto additional lines on narrow screens.</li><li><b>CAPE / Lifted Index:</b> indicators of convective and thunderstorm potential; they do not guarantee a storm.</li><li><b>Wet-bulb temperature, vapour-pressure deficit, evapotranspiration:</b> additional indicators used in assessing heat stress and evaporation.</li></ul>
+    <h3>Current values and hourly forecast</h3><p>The current endpoint provides only a subset of variables. If a value is missing from the current panel, the app may fill it from the nearest hourly record. Such a value is a model forecast for that hour, not a separate real-time observation. If the nearest hourly record is not close enough or the data is unavailable, a dash is shown.</p>
+    <h3>Reading the forecast</h3><p>Forecasts are model estimates, not guarantees. Uncertainty usually increases farther into the future; showers, thunderstorms, and wind can vary within a city. Daily values are generally daily summaries or extremes, while hourly values describe individual time steps.</p>
+    <h3>Data sources</h3><ul><li><a href="https://open-meteo.com/en/docs" target="_blank" rel="noopener noreferrer">Open-Meteo Forecast API – documentation and variables</a></li><li><a href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noopener noreferrer">Open-Meteo Geocoding API – place search</a></li><li><a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo – data sources and models</a></li><li><a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0 data licence</a></li></ul><p><b>Attribution:</b> Weather data by Open-Meteo. Data are model-based and provided without warranty; terms and availability may change. Open-Meteo states that access is free for non-commercial use with attribution.</p>
+    <h3>App version 1.3.8</h3><ul><li>Basic values are ordered as wind with gusts, visibility, then sunrise/sunset.</li><li>Wind and gusts share one grid item; visibility and Sun sit beside them when three columns fit.</li><li>Sunrise/sunset times follow their labels on the same line.</li><li>Moon information starts on the next row and wraps to fit the available width.</li></ul><h3>Earlier changes</h3><p><b>1.3.8</b> – basic values are ordered wind/gusts, visibility and Sun, with Moon on the next row. Earlier changes: daily tiles show precipitation amount/probability and sunrise/sunset icons with times. Swipe left/right in the basic or expanded detailed overview to move between hourly forecast values, including visibility and moon information. An opened tile panel has separate swipe navigation to the previous/next tile. This is the app build version, not the version of the API or weather model.</p><p><b>Notice:</b> For information only. It does not replace official warnings or expert judgement during hazardous weather.</p>`;
+}
+
+function renderStaticText() {
+  document.documentElement.lang = lang;
+  document.title = t.title;
+  els.tTitle.textContent = t.title;
+  els.langCode.textContent = t.code;
+  els.lang.title = t.langSwitchTitle;
+  els.q.placeholder = t.placeholder;
+  els.q.setAttribute("aria-label", t.searchLabel);
+  els.go.textContent = t.search;
+  els.geo.title = t.geoTitle;
+  els.geo.setAttribute("aria-label", t.geoTitle);
+  els.tHum.textContent = `💧 ${t.humidity}`;
+  $("t-dew").textContent = `🌡️ ${t.dewPoint}`;
+  $("t-cloud").textContent = `☁️ ${t.cloudCover}`;
+  $("t-precip").textContent = `🌧️ ${t.precipitation}`;
+  $("t-visibility").textContent = "👁️ " + t.visibility;
+  $("t-gusts").textContent = "🌬️ " + t.gusts;
+  els.tPressure.textContent = `🎚️ ${t.pressure}`;
+  els.tWind.textContent = `💨 ${t.wind}`;
+  els.tSunrise.textContent = t.sunrise;
+  els.tSunset.textContent = t.sunset;
+  $("t-precip-prob").textContent = lang === "cs" ? "☔ Pravděpodobnost srážek" : "☔ Precipitation probability";
+  $("t-moon").textContent = t.moon;
+  $("t-moonrise").textContent = lang === "cs" ? "východ" : "rise";
+  $("t-moonset").textContent = lang === "cs" ? "západ" : "set";
+  $("t-moonphase").textContent = lang === "cs" ? "fáze" : "phase";
+  $("moonrise").parentElement.title = lang === "cs" ? "Východ Měsíce" : "Moonrise";
+  $("moonset").parentElement.title = lang === "cs" ? "Západ Měsíce" : "Moonset";
+  $("moonphase").parentElement.title = lang === "cs" ? "Fáze Měsíce" : "Moon phase";
+  $("i-sunrise").title = t.sunrise;
+  $("i-sunset").title = t.sunset;
+  els.v3d.textContent = t.tab3;
+  els.v9d.textContent = t.tab9;
+  els.v24h.textContent = t.tab24;
+  els.v3d.title = t.tab3Title;
+  els.v9d.title = t.tab9Title;
+  els.v24h.title = t.tab24Title;
+  $("hourly-label").textContent = lang === "cs" ? "Hodinová" : "Hourly";
+  $("daily-label").textContent = lang === "cs" ? "Denní" : "Daily";
+  els.viewSwitch.setAttribute("aria-label", t.rangeLabel);
+  updateViewButtons();
+  updateDetailToggle();
+  renderToday();
+}
+
+function moonPhaseIcon(phase) {
+  const p = ((Number(phase) % 1) + 1) % 1;
+  if (p < 0.04 || p >= 0.96) return "🌑";
+  if (p < 0.21) return "🌒";
+  if (p < 0.29) return "🌓";
+  if (p < 0.46) return "🌔";
+  if (p < 0.54) return "🌕";
+  if (p < 0.71) return "🌖";
+  if (p < 0.79) return "🌗";
+  return "🌘";
+}
+function moonPhaseText(phase) {
+  const p = ((Number(phase) % 1) + 1) % 1;
+  if (p < 0.04 || p >= 0.96) return lang === "cs" ? "Nov" : "New moon";
+  if (p >= 0.46 && p < 0.54) return lang === "cs" ? "Úplněk" : "Full moon";
+  if ((p >= 0.21 && p < 0.29) || (p >= 0.71 && p < 0.79)) return lang === "cs" ? "První / poslední čtvrt" : "First / last quarter";
+  return p < 0.5 ? (lang === "cs" ? "Dorůstající Měsíc" : "Waxing Moon") : (lang === "cs" ? "Ubývající Měsíc" : "Waning Moon");
+}
+
+function render(data) {
+  lastData = data;
+  const cond = conditionOf(data.current.weather_code);
+  setAccent(cond.color);
+
+  els.place.textContent = data.place;
+  const selectedTime = data.current && data.current.time ? new Date(data.current.time) : new Date();
+  const hourText = selectedTime.toLocaleTimeString(t.locale, { hour: "numeric", hour12: false });
+  const dateText = selectedTime.toLocaleDateString(t.locale, { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+  const selectedHourEl = $("selected-hour");
+  if (selectedHourEl) selectedHourEl.textContent = `${dateText} : ${hourText} ${t.hoursShort === "h" ? (lang === "cs" ? "hod." : "h") : t.hoursShort}`;
+  const feat = data.feature ? featureOf(data.feature) : null;
+  els.region.textContent = feat
+    ? [feat[0] + " " + feat[1], data.region].filter(Boolean).join(" · ")
+    : (data.region || "");
+  renderGps(data.lat, data.lon, data.elevation);
+  els.icon.textContent = cond.icon;
+  els.icon.title = label(data.current.weather_code);
+  els.temp.textContent = round(data.current.temperature_2m) + "°";
+  $("feels-inline").textContent = `(${t.feels.toLowerCase()} ${round(data.current.apparent_temperature)}°)`;
+  els.cond.textContent = label(data.current.weather_code);
+  els.hum.textContent = round(data.current.relative_humidity_2m) + "%";
+  const c = data.current || {};
+  $("dew").textContent = Number.isFinite(c.dew_point_2m) ? `${Math.round(c.dew_point_2m)}°` : "—";
+  $("cloud").textContent = Number.isFinite(c.cloud_cover) ? `${Math.round(c.cloud_cover)} %` : "—";
+  const precip = Number.isFinite(c.precipitation) ? c.precipitation : null;
+  $("precip").textContent = precip !== null ? `${precip.toFixed(1)} mm` : "—";
+  $("precip-prob").textContent = Number.isFinite(c.precipitation_probability) ? `${Math.round(c.precipitation_probability)} %` : "—";
+  $("visibility").textContent = Number.isFinite(c.visibility) ? (c.visibility >= 1000 ? `${(c.visibility / 1000).toFixed(1)} km` : `${Math.round(c.visibility)} m`) : "—";
+  renderPressure(data);
+
+  const d = data.daily;
+  const dirDeg = (data.current.wind_direction_10m !== undefined && data.current.wind_direction_10m !== null)
+    ? data.current.wind_direction_10m
+    : (d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[0]);
+  const dir = compass(dirDeg);
+  const speed = round(data.current.wind_speed_10m) + " km/h";
+  const gust = Number.isFinite(data.current.wind_gusts_10m) ? data.current.wind_gusts_10m : null;
+  $("gusts").textContent = gust !== null ? `${Math.round(gust)} km/h` : "—";
+  if (dir) {
+    els.wind.innerHTML = `${esc(speed)} · ${esc(t.windFrom)} ${esc(dir.short)} ` +
+      `<span class="wind-arrow" style="transform: rotate(${dir.deg + 180}deg)">↑</span>`;
+    els.wind.title = `${t.windFromFull(dir.full)} (${dir.deg}°)`;
+  } else {
+    els.wind.innerHTML = `${esc(speed)} · ${esc(t.calm)}`;
+    els.wind.title = t.calm;
+  }
+
+  els.sunrise.textContent = clockTime(d.sunrise && d.sunrise[0]);
+  els.sunset.textContent = clockTime(d.sunset && d.sunset[0]);
+  $("moonrise").textContent = clockTime(d.moonrise && d.moonrise[0]);
+  $("moonset").textContent = clockTime(d.moonset && d.moonset[0]);
+  const phase = d.moon_phase && d.moon_phase[0];
+  $("moonphase").textContent = Number.isFinite(phase) ? moonPhaseText(phase) : "—";
+  $("i-moonphase").textContent = Number.isFinite(phase) ? moonPhaseIcon(phase) : "🌙";
+
+  renderDetails(data);
+  renderForecast();
+}
+
+function renderForecast() {
+  if (!lastData) return;
+  els.forecast.innerHTML = "";
+  if (graphMode) {
+    els.forecast.className = "forecast chart-mode";
+    renderWeatherGraph(lastData);
+    updateViewButtons();
+    els.dayPanel.hidden = true;
+    return;
+  }
+  if (view.endsWith("h")) {
+    els.forecast.className = "forecast cols-6";
+    renderHourly(lastData, Number(view.slice(0, -1)));
+  } else {
+    els.forecast.className = "forecast cols-3";
+    renderDaily(lastData, Number(view.slice(0, -1)));
+  }
+  updateTileSelection();
+  renderDayPanel();
+}
+
+function tile(color, kind, index) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "card day";
+  card.style.borderTopColor = color;
+  card.setAttribute("aria-pressed", "false");
+  card.addEventListener("click", () => selectTile(kind, index));
+  return card;
+}
+
+function renderDaily(data, count) {
+  const d = data.daily;
+  d.time.slice(0, count).forEach((iso, i) => {
+    const c = conditionOf(d.weather_code[i]);
+    const card = tile(c.color, "day", i);
+
+    const parts = [fullDate(iso), label(d.weather_code[i])];
+    if (d.sunrise && d.sunrise[i]) {
+      parts.push(`${t.sunrise} ${clockTime(d.sunrise[i])} · ${t.sunset} ${clockTime(d.sunset[i])}`);
+    }
+    const dayDir = compass(d.wind_direction_10m_dominant && d.wind_direction_10m_dominant[i]);
+    if (dayDir) parts.push(`${t.windFrom} ${dayDir.short} (${dayDir.deg}°)`);
+
+    card.innerHTML =
+      `<div class="day-head"><span class="name">${esc(dayName(iso, i, data.timezone))}</span><span class="date">${esc(shortDate(iso))}</span></div>` +
+      `<div class="ico" title="${esc(parts.join("\n"))}">${c.icon}</div>` +
+      `<div class="day-temps"><span class="hi" title="Denní teplota"><span class="temp-icon">☀️</span> ${round(d.temperature_2m_max[i])}°</span>` +
+      `<span class="lo" title="Noční teplota"><span class="temp-icon">🌙</span> ${round(d.temperature_2m_min[i])}°</span></div>` +
+      `<div class="day-mini" title="${esc(t.precipSum)}">🌧️ ${isNum(d.precipitation_sum && d.precipitation_sum[i]) ? d.precipitation_sum[i].toFixed(1) + " mm" : "—"} <span title="${esc(t.precipChance)}">☔ ${isNum(d.precipitation_probability_max && d.precipitation_probability_max[i]) ? Math.round(d.precipitation_probability_max[i]) + "%" : "—"}</span></div>` +
+      `<div class="day-sun" title="${esc(t.sunrise)} / ${esc(t.sunset)}"><span>🌅 ${esc(clockTime(d.sunrise && d.sunrise[i]))}</span><span>🌇 ${esc(clockTime(d.sunset && d.sunset[i]))}</span></div>`;
+    els.forecast.appendChild(card);
+  });
+}
+
+function renderHourly(data, hours) {
+  const h = data.hourly;
+  if (!h || !h.time || !h.temperature_2m) {
+    els.forecast.className = "forecast cols-3";
+    renderDaily(data, 3);
+    return;
+  }
+  const now = Date.now();
+  let start = h.time.findIndex(ts => new Date(ts).getTime() >= now);
+  if (start < 0) start = 0;
+  hourStart = start;
+
+  h.time.slice(start, start + hours).forEach((iso, i) => {
+    const idx = start + i;
+    const c = conditionOf(h.weather_code ? h.weather_code[idx] : null);
+    const card = tile(c.color, "hour", i);
+
+    const parts = [`${fullDate(iso)} ${clockTime(iso)}`, label(h.weather_code ? h.weather_code[idx] : null)];
+    if (h.precipitation_probability && h.precipitation_probability[idx] !== null) {
+      parts.push(`💧 ${h.precipitation_probability[idx]}%`);
+    }
+    if (h.wind_speed_10m && h.wind_speed_10m[idx] !== null) {
+      parts.push(`${t.wind} ${Math.round(h.wind_speed_10m[idx])} km/h`);
+    }
+
+    const pop = (h.precipitation_probability && h.precipitation_probability[idx] !== null)
+      ? `${Math.round(h.precipitation_probability[idx])}%` : "—";
+    const feels = h.apparent_temperature && h.apparent_temperature[idx] !== null
+      ? round(h.apparent_temperature[idx]) : "—";
+
+    const amount = h.precipitation && Number.isFinite(Number(h.precipitation[idx])) ? `${Number(h.precipitation[idx]).toFixed(1)} mm` : "—";
+    const visibility = h.visibility && Number.isFinite(Number(h.visibility[idx]))
+      ? (Number(h.visibility[idx]) >= 1000 ? `${(Number(h.visibility[idx]) / 1000).toFixed(1)} km` : `${Math.round(Number(h.visibility[idx]))} m`) : "—";
+    card.innerHTML =
+      `<div class="day-head"><span class="name">${esc(i === 0 ? t.now : clockTime(iso))}</span><span class="date">${esc(shortDate(iso))}</span></div>` +
+      `<div class="ico" title="${esc(parts.join("\n"))}">${c.icon}</div>` +
+      `<div class="day-temps"><span class="hi" title="Teplota vzduchu">🌡️ ${round(h.temperature_2m[idx])}°</span>` +
+      `<span class="lo" title="Pocitová teplota">🧍 ${feels}°</span></div>` +
+      `<div class="hour-precip" title="Pravděpodobnost srážek">☔ ${esc(pop)}</div>` +
+      `<div class="hour-extra" title="Množství srážek">🌧️ ${esc(amount)}</div>` +
+      `<div class="hour-extra" title="Dohlednost">👁️ ${esc(visibility)}</div>`;
+    els.forecast.appendChild(card);
+  });
+}
+
+function renderWeatherGraph(data) {
+  const hourly = view.endsWith("h");
+  const count = Number(view.slice(0, -1));
+  let labels = [], series = [], precipValues = null, datesForLabels = [];
+  const h = data.hourly || {};
+  const d = data.daily || {};
+
+  // Calculate daylight and nighttime means from hourly values and the API's is_day flag.
+  const meansByDate = new Map();
+  if (h.time && h.temperature_2m && h.is_day) {
+    h.time.forEach((iso, i) => {
+      const temp = h.temperature_2m[i];
+      const isDay = h.is_day[i];
+      if (temp === null || temp === undefined || !Number.isFinite(Number(temp)) || (isDay !== 0 && isDay !== 1)) return;
+      const date = String(iso).slice(0, 10);
+      if (!meansByDate.has(date)) meansByDate.set(date, { day: [], night: [] });
+      meansByDate.get(date)[isDay === 1 ? "day" : "night"].push(Number(temp));
+    });
+  }
+  const average = values => values && values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+
+  let hourlyStart = 0, hourlyEnd = 0;
+  if (hourly && h.time) {
+    let start = h.time.findIndex(ts => new Date(ts).getTime() >= Date.now());
+    if (start < 0) start = 0;
+    const end = Math.min(start + count, h.time.length);
+    hourlyStart = start; hourlyEnd = end;
+    const times = h.time.slice(start, end);
+    labels = times.map(iso => clockTime(iso).replace(/:00$/, ""));
+    datesForLabels = times.map(iso => String(iso).slice(0, 10));
+    series = [
+      { name: lang === "cs" ? "Teplota" : "Temperature", color: "#e58b25", values: (h.temperature_2m || []).slice(start,end) },
+      { name: lang === "cs" ? "Pocitová" : "Feels like", color: "#3978d4", values: (h.apparent_temperature || []).slice(start,end) }
+    ];
+    precipValues = (h.precipitation || []).slice(start, end);
+  } else {
+    const end = Math.min(count, (d.time || []).length);
+    const days = (d.time || []).slice(0, end);
+    labels = days.map(iso => shortDate(iso));
+    datesForLabels = days.slice();
+    const dayMean = days.map(date => average((meansByDate.get(date) || {}).day));
+    const nightMean = days.map(date => average((meansByDate.get(date) || {}).night));
+    series = [
+      { name: lang === "cs" ? "Denní max" : "Day max", color: "#e58b25", values: (d.temperature_2m_max || []).slice(0,end) },
+      { name: lang === "cs" ? "Denní prům." : "Day avg.", color: "#f4c16e", values: dayMean },
+      { name: lang === "cs" ? "Noční min" : "Night min", color: "#3978d4", values: (d.temperature_2m_min || []).slice(0,end) },
+      { name: lang === "cs" ? "Noční prům." : "Night avg.", color: "#78b7ee", values: nightMean }
+    ];
+    precipValues = (d.precipitation_sum || []).slice(0,end);
+  }
+
+  const all = series.flatMap(s => s.values).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+  if (!all.length) { els.forecast.textContent = lang === "cs" ? "Graf není k dispozici." : "Chart unavailable."; return; }
+  let min = Math.floor(Math.min(...all) / 5) * 5, max = Math.ceil(Math.max(...all) / 5) * 5;
+  if (min === max) { min -= 5; max += 5; }
+  const hasPrecip = Array.isArray(precipValues);
+  const W = hourly ? Math.max(900, labels.length * 48 + 36) : Math.max(340, labels.length * 44 + 20);
+  const H=hourly ? 356 : 300, L=hourly ? 30 : 20, R=hasPrecip ? (hourly ? 30 : 20) : 8, T=hourly ? 82 : 18, B=hourly ? 54 : 42, plotW=W-L-R, plotH=H-T-B;
+  const x = i => L + (labels.length <= 1 ? plotW/2 : i*plotW/(labels.length-1));
+  const y = v => T + (max-Number(v))*plotH/(max-min);
+  const grid = [];
+  const tempTicks = [];
+  for(let v=min;v<=max;v+=5) {
+    const yy=y(v);
+    grid.push(`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="currentColor" opacity=".12"/>`);
+    tempTicks.push(`<text x="1" y="${yy+4}" text-anchor="start" fill="currentColor" opacity=".88" font-size="12">${v}°</text>`);
+  }
+  if (hourly) {
+    for (let i = 1; i < labels.length; i++) {
+      if (datesForLabels[i] !== datesForLabels[i - 1]) {
+        const boundary = (x(i - 1) + x(i)) / 2;
+        grid.push(`<line x1="${boundary}" y1="${T}" x2="${boundary}" y2="${T + plotH}" stroke="currentColor" stroke-width="1.2" stroke-dasharray="4 3" opacity=".42"/>`);
+      }
+    }
+  }
+  let precipBars = "", precipAxis = "";
+  if (hasPrecip) {
+    const validPrecip = precipValues.filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+    const precipMax = Math.max(1, Math.ceil(Math.max(0, ...validPrecip)));
+    const step = labels.length > 1 ? plotW/(labels.length-1) : plotW;
+    const barW = Math.max(3, Math.min(hourly ? 22 : 26, step*0.58));
+    precipBars = precipValues.map((value,i) => {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "";
+      const v = Math.max(0, Number(value));
+      const bh = v / precipMax * plotH;
+      const period = hourly ? `${datesForLabels[i]} ${labels[i]}:00` : (labels[i] || "");
+      return `<rect x="${x(i)-barW/2}" y="${T+plotH-bh}" width="${barW}" height="${bh}" rx="2" fill="#4b9ed8" opacity=".58"><title>${esc(period)} · ${lang === "cs" ? "Srážky" : "Precipitation"}: ${v.toFixed(1)} mm</title></rect>`;
+    }).join("");
+    precipAxis = `<text x="${5}" y="${T+4}" fill="#4b9ed8" font-size="11">${precipMax}</text><text x="${5}" y="${T+plotH+4}" fill="#4b9ed8" font-size="11">0</text>`;
+  }
+  const lines = series.map(s => {
+    const pts = s.values.map((v,i)=>v !== null && v !== undefined && Number.isFinite(Number(v)) ? `${x(i)},${y(v)}` : null).filter(Boolean).join(" ");
+    const dots = s.values.map((v,i)=>v !== null && v !== undefined && Number.isFinite(Number(v)) ? `<circle cx="${x(i)}" cy="${y(v)}" r="${hourly ? 2.3 : 2}" fill="${s.color}"><title>${esc(s.name)}: ${Number(v).toFixed(1)} °C</title></circle>` : "").join("");
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${hourly ? 2.4 : 1.6}" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+  }).join("");
+  let cloudLines = "";
+  if (hourly) {
+    // Three source cloud percentages displayed as short horizontal bars above the plot.
+    // High clouds are topmost, mid-level clouds in the middle, low clouds at the bottom.
+    const cloudSeries = [
+      { key: "cloud_cover_high", name: lang === "cs" ? "Vysoká oblačnost" : "High clouds", color: "#bbbbbb", y: 63 },
+      { key: "cloud_cover_mid", name: lang === "cs" ? "Střední oblačnost" : "Mid clouds", color: "#888888", y: 69 },
+      { key: "cloud_cover_low", name: lang === "cs" ? "Nízká oblačnost" : "Low clouds", color: "#555555", y: 75 }
+    ];
+    const cellW = labels.length > 1 ? plotW / (labels.length - 1) : plotW;
+    cloudLines = cloudSeries.map(cs => {
+      const values = (h[cs.key] || []).slice(hourlyStart, hourlyEnd);
+      return values.map((v, i) => {
+        if (v === null || v === undefined || !Number.isFinite(Number(v))) return "";
+        const pct = Math.max(0, Math.min(100, Number(v)));
+        const width = Math.max(1, cellW * 0.72) * pct / 100;
+        const x0 = x(i) - Math.max(1, cellW * 0.72) / 2;
+        return `<rect x="${x0}" y="${cs.y}" width="${width}" height="3.5" rx="1.5" fill="${cs.color}" opacity=".95"><title>${datesForLabels[i]} ${labels[i]}:00 · ${cs.name}: ${Math.round(pct)}%</title></rect>`;
+      }).join("");
+    }).join("");
+
+    // Weather symbol and wind speed/direction are shown together in each hourly header.
+    const weatherCodes = (h.weather_code || []).slice(hourlyStart, hourlyEnd);
+    const cloudValues = (h.cloud_cover || []).slice(hourlyStart, hourlyEnd);
+    const windSpeeds = (h.wind_speed_10m || []).slice(hourlyStart, hourlyEnd);
+    const windDirections = (h.wind_direction_10m || []).slice(hourlyStart, hourlyEnd);
+    const isDayValues = (h.is_day || []).slice(hourlyStart, hourlyEnd);
+    const cloudSymbols = labels.map((_, i) => {
+      const code = weatherCodes[i];
+      const cloud = cloudValues[i];
+      let symbol = "☁";
+      if (code !== null && code !== undefined && Number.isFinite(Number(code))) {
+        const c = Number(code);
+        if (c === 0) symbol = isDayValues[i] === 0 ? "☾" : "☀";
+        else if ([1, 2].includes(c)) symbol = isDayValues[i] === 0 ? "☾☁" : "🌤";
+        else if (c === 3) symbol = "☁";
+        else if ([45, 48].includes(c)) symbol = "≋";
+        else if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(c)) symbol = "🌧";
+        else if ([71, 73, 75, 77, 85, 86].includes(c)) symbol = "❄";
+        else if ([95, 96, 99].includes(c)) symbol = "⛈";
+      } else if (cloud !== null && cloud !== undefined && Number.isFinite(Number(cloud))) {
+        symbol = Number(cloud) < 15 ? "☀" : Number(cloud) < 40 ? "🌤" : Number(cloud) < 70 ? "⛅" : "☁";
+      }
+      const title = `${datesForLabels[i]} ${labels[i]}:00 · ${code == null ? (lang === "cs" ? "Počasí nedostupné" : "Weather unavailable") : esc(label(Number(code)))}`;
+      const fill = cloud == null ? "#8a969d" : Number(cloud) < 25 ? "#e6a33a" : Number(cloud) < 60 ? "#8a969d" : "#667780";
+      const speed = windSpeeds[i] !== null && windSpeeds[i] !== undefined && Number.isFinite(Number(windSpeeds[i])) ? `${Math.round(Number(windSpeeds[i]))} km/h` : "- km/h";
+      const directionDeg = windDirections[i] !== null && windDirections[i] !== undefined && Number.isFinite(Number(windDirections[i])) ? Number(windDirections[i]) : null;
+      const direction = directionDeg === null ? "-" : (compass(directionDeg)?.short || "-");
+      // Open-Meteo wind_direction_10m is the direction FROM which wind blows.
+      // The displayed arrow should point TO the predicted airflow direction, so rotate 180 degrees.
+      const flowDirection = directionDeg === null ? null : (directionDeg + 180) % 360;
+      const arrow = flowDirection === null ? `<text x="${x(i)}" y="54" text-anchor="middle" fill="currentColor" opacity=".65" font-size="10"><title>${lang === "cs" ? "Směr větru nedostupný" : "Wind direction unavailable"}</title>—</text>` : `<g transform="translate(${x(i)} 51) rotate(${flowDirection})" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"><title>${lang === "cs" ? "Směr proudění větru" : "Wind flow direction"}: ${direction}${direction === "-" ? "" : ` (${Math.round(directionDeg)}° odkud vítr vane)`}</title><path d="M 0 5 L 0 -5 M -3 -2 L 0 -5 L 3 -2"/></g>`;
+      return `<text x="${x(i)}" y="23" text-anchor="middle" font-size="${symbol.length > 2 ? 15 : 20}" fill="${fill}"><title>${title}</title>${symbol}</text><text x="${x(i)}" y="40" text-anchor="middle" fill="currentColor" opacity=".9" font-size="10.5"><title>${lang === "cs" ? "Rychlost větru" : "Wind speed"}: ${speed}</title>${speed}</text>${arrow}`;
+    }).join("");
+    cloudLines += cloudSymbols;
+  }
+
+  // Sea-level pressure uses its own normalized vertical scale, so it does not distort the temperature axis.
+  let pressureLine = "";
+  if (hourly) {
+    const pressureValues = (h.pressure_msl || []).slice(hourlyStart, hourlyEnd);
+    const validPressure = pressureValues.filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number);
+    if (validPressure.length) {
+      const pMin = Math.min(...validPressure), pMax = Math.max(...validPressure);
+      const pRange = pMax - pMin || 1;
+      const points = pressureValues.map((v, i) => v !== null && v !== undefined && Number.isFinite(Number(v))
+        ? `${x(i)},${T + 8 + (pMax - Number(v)) * (plotH - 16) / pRange}` : null).filter(Boolean).join(" ");
+      const dots = pressureValues.map((v, i) => v !== null && v !== undefined && Number.isFinite(Number(v))
+        ? `<circle cx="${x(i)}" cy="${T + 8 + (pMax - Number(v)) * (plotH - 16) / pRange}" r="1.8" fill="#777777" opacity=".58"><title>${datesForLabels[i]} ${labels[i]}:00 · ${lang === "cs" ? "Tlak" : "Pressure"}: ${Number(v).toFixed(1)} hPa</title></circle>` : "").join("");
+      const pressureLabels = pressureValues.map((v, i) => {
+        if (v === null || v === undefined || !Number.isFinite(Number(v)) || (i % 3 !== 0 && i !== pressureValues.length - 1)) return "";
+        const py = T + 8 + (pMax - Number(v)) * (plotH - 16) / pRange;
+        const labelY = py < T + 22 ? py + 12 : py - 6;
+        return `<text x="${x(i)}" y="${labelY}" text-anchor="middle" fill="#777777" font-size="9.5" opacity=".82" stroke="none"><title>${datesForLabels[i]} ${labels[i]}:00 · ${lang === "cs" ? "Tlak" : "Pressure"}: ${Number(v).toFixed(1)} hPa</title>${Number(v).toFixed(1)}</text>`;
+      }).join("");
+      pressureLine = `<polyline points="${points}" fill="none" stroke="#777777" stroke-width="1.2" opacity=".42" stroke-linejoin="round" stroke-linecap="round"><title>${lang === "cs" ? "Tlak vzduchu (hPa)" : "Air pressure (hPa)"}</title></polyline>${dots}${pressureLabels}`;
+    }
+  }
+  const xlabels = labels.map((lab,i) => {
+    if (!lab) return "";
+    if (!hourly) return `<text x="${x(i)}" y="${H-14}" text-anchor="middle" fill="currentColor" opacity=".8" font-size="12">${esc(lab)}</text>`;
+    return `<text x="${x(i)}" y="${H-29}" text-anchor="middle" fill="currentColor" opacity=".82" font-size="10.5">${esc(lab)}</text>`;
+  }).join("");
+  let dayLabels = "";
+  if (hourly) {
+    const groups = [];
+    let groupStart = 0;
+    for (let i = 1; i <= datesForLabels.length; i++) {
+      if (i === datesForLabels.length || datesForLabels[i] !== datesForLabels[groupStart]) {
+        const left = groupStart === 0 ? L : (x(groupStart - 1) + x(groupStart)) / 2;
+        const right = i === datesForLabels.length ? W - R : (x(i - 1) + x(i)) / 2;
+        groups.push(`<text x="${(left + right) / 2}" y="${H-9}" text-anchor="middle" fill="currentColor" opacity=".88" font-size="11" font-weight="600">${esc(shortDate(datesForLabels[groupStart]))}</text>`);
+        groupStart = i;
+      }
+    }
+    dayLabels = groups.join("");
+  }
+  const legendItems = series.map(s=>`<span><i class="chart-key" style="background:${s.color}"></i>${esc(s.name)}</span>`);
+  if (hasPrecip) legendItems.push(`<span><i class="chart-key" style="height:10px;background:#4b9ed8;opacity:.7"></i>${lang === "cs" ? "Srážky (mm)" : "Precipitation (mm)"}</span>`);
+  if (hourly) {
+    legendItems.push(`<span><i class="chart-key" style="background:#bbbbbb;height:7px"></i>${lang === "cs" ? "Vysoká oblačnost" : "High clouds"}</span>`);
+    legendItems.push(`<span><i class="chart-key" style="background:#888888;height:7px"></i>${lang === "cs" ? "Střední oblačnost" : "Mid clouds"}</span>`);
+    legendItems.push(`<span><i class="chart-key" style="background:#555555;height:7px"></i>${lang === "cs" ? "Nízká oblačnost" : "Low clouds"}</span>`);
+    legendItems.push(`<span><i class="chart-key" style="background:#777777;opacity:.42"></i>${lang === "cs" ? "Tlak (hPa)" : "Pressure (hPa)"}</span>`);
+    legendItems.push(`<span>☀ ${lang === "cs" ? "Typ počasí + vítr" : "Conditions + wind"}</span>`);
+  }
+  const legend = legendItems.join("");
+  const aria = lang === "cs" ? (hourly ? "Hodinový graf teploty, pocitové teploty a srážek" : "Denní graf denních maxim, denních průměrů, nočních minim, nočních průměrů a srážek") : (hourly ? "Hourly chart of temperature, feels-like temperature and precipitation" : "Daily chart of daytime highs and averages, nighttime lows and averages, and precipitation");
+  const leftAxis = `<svg class="chart-fixed-axis left" viewBox="0 0 30 ${H}" style="height:${H}px" aria-hidden="true"><rect x="0" y="0" width="30" height="${H}" fill="transparent"/>${tempTicks.join("")}<text x="3" y="11" fill="currentColor" opacity=".75" font-size="10">°C</text></svg>`;
+  const rightAxis = hasPrecip ? `<svg class="chart-fixed-axis right" viewBox="0 0 30 ${H}" style="height:${H}px" aria-hidden="true"><rect x="0" y="0" width="30" height="${H}" fill="transparent"/><text x="29" y="11" text-anchor="end" fill="#4b9ed8" font-size="10">mm</text><text x="29" y="${T+4}" text-anchor="end" fill="#4b9ed8" font-size="11">${Math.max(1, Math.ceil(Math.max(0, ...(precipValues || []).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v))).map(Number))))}</text><text x="33" y="${T+plotH+4}" text-anchor="end" fill="#4b9ed8" font-size="11">0</text></svg>` : "";
+  els.forecast.innerHTML = `<div class="chart-fixed-axes">${leftAxis}${rightAxis}</div><div class="chart-scroll-wrap"><svg class="weather-chart" style="width:${W}px;max-width:none" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">${grid.join("")}${precipBars}${pressureLine}${cloudLines}${lines}${xlabels}${dayLabels}</svg></div><div class="chart-legend">${legend}</div>`;
+}
+function setGraphMode(enabled) {
+  graphMode = enabled;
+  localStorage.setItem("weather-graph", enabled ? "1" : "0");
+  els.graphToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+  els.graphToggle.textContent = enabled ? (lang === "cs" ? "Dlaždice" : "Tiles") : (lang === "cs" ? "Graf" : "Chart");
+  selected = null;
+  renderForecast();
+}
+
+function setView(next) {
+  if (!VIEWS.includes(next)) return;
+  view = next;
+  selected = null;
+  localStorage.setItem("weather-view", view);
+  updateViewButtons();
+  renderForecast();
+}
+
+function updateViewButtons() {
+  els.graphToggle.setAttribute("aria-pressed", graphMode ? "true" : "false");
+  els.graphToggle.textContent = graphMode ? (lang === "cs" ? "Dlaždice" : "Tiles") : (lang === "cs" ? "Graf" : "Chart");
+  els.tForecast.textContent = view.endsWith("h")
+    ? (lang === "cs" ? `Hodinová předpověď · ${view.slice(0, -1)} hodin` : `Hourly forecast · ${view.slice(0, -1)} hours`)
+    : (lang === "cs" ? `Denní předpověď · ${view.slice(0, -1)} dní` : `Daily forecast · ${view.slice(0, -1)} days`);
+  [["3d", els.v3d], ["9d", els.v9d], ["16d", els.v16d], ["24h", els.v24h], ["48h", els.v48h], ["72h", els.v72h], ["96h", els.v96h]].forEach(([key, btn]) => {
+    btn.setAttribute("aria-pressed", key === view ? "true" : "false");
+  });
+}
+
+function setStatus(key, arg) {
+  lastStatus = { key, arg };
+  const neutral = ["live", "loading", "locating", "detecting", "requesting", "approxNote", "defaultNote"];
+  els.status.className = neutral.includes(key) ? "status" : "status error";
+  const value = t[key];
+  els.status.textContent = typeof value === "function" ? value(arg) : value;
+}
+
+function refreshStatus() {
+  if (!lastStatus) return;
+  const value = t[lastStatus.key];
+  els.status.textContent = typeof value === "function" ? value(lastStatus.arg) : value;
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString(t.locale, { hour: "2-digit", minute: "2-digit" });
+}
+
+async function json(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Request failed: " + res.status);
+  return res.json();
+}
+
+async function geocodeAll(name) {
+  const query = String(name || "").normalize("NFC").trim().replace(/\s+/g, " ");
+  if (query.length < 2) {
+    const err = new Error("QUERY_TOO_SHORT"); err.city = query; throw err;
+  }
+  const url = "https://geocoding-api.open-meteo.com/v1/search?count=10&format=json" +
+    `&language=${lang}&name=${encodeURIComponent(query)}`;
+  const data = await json(url);
+  if (!data || !Array.isArray(data.results) || !data.results.length) {
+    const err = new Error("NO_RESULTS"); err.city = query; throw err;
+  }
+  return data.results.filter(r => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).map(r => ({
+    lat: r.latitude,
+    lon: r.longitude,
+    place: r.name,
+    feature: r.feature_code,
+    srcElevation: r.elevation,
+    population: r.population,
+    region: [r.admin1, r.country].filter(Boolean).join(", ")
+  }));
+}
+
+function rankResults(list) {
+  return list.slice().sort((a, b) => (b.population || 0) - (a.population || 0));
+}
+
+async function forecast(loc) {
+  const url = "https://api.open-meteo.com/v1/forecast" +
+    `?latitude=${loc.lat}&longitude=${loc.lon}` +
+    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m" +
+    "&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,weather_code,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,precipitation_type,rain_probability,snowfall_probability,freezing_rain_probability,thunderstorm_probability,pressure_msl,surface_pressure,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day,uv_index,uv_index_clear_sky,shortwave_radiation,direct_radiation,diffuse_radiation,sunshine_duration,wet_bulb_temperature_2m,evapotranspiration,et0_fao_evapotranspiration,vapour_pressure_deficit,total_column_integrated_water_vapour,cape,lifted_index,convective_inhibition,freezing_level_height,boundary_layer_height,soil_temperature_0_to_7cm,soil_moisture_0_to_7cm,runoff" +
+    "&past_hours=6&forecast_hours=384" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,wind_direction_10m_dominant,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,precipitation_sum,rain_sum,showers_sum,snowfall_sum,precipitation_hours,precipitation_probability_max,sunshine_duration,daylight_duration,sunrise,sunset,moonrise,moonset,moon_phase,temperature_2m_mean,relative_humidity_2m_min,relative_humidity_2m_mean,relative_humidity_2m_max,dew_point_2m_min,dew_point_2m_mean,dew_point_2m_max,pressure_msl_min,pressure_msl_mean,pressure_msl_max,wind_speed_10m_min,wind_speed_10m_mean,cloud_cover_mean,cloud_cover_min,cloud_cover_max,uv_index_clear_sky_max,shortwave_radiation_sum,et0_fao_evapotranspiration,cape_max,vapour_pressure_deficit_max,snow_depth_max" +
+    "&timezone=auto&forecast_days=16";
+  const data = await json(url);
+  // Fill current fields omitted by the current endpoint from the nearest
+  // hourly forecast slot. Keep all genuine current observations unchanged.
+  if (data.current && data.hourly && Array.isArray(data.hourly.time) && data.hourly.time.length) {
+    let currentIndex = data.hourly.time.indexOf(data.current.time);
+    if (currentIndex < 0 && data.current.time) {
+      const currentMs = Date.parse(data.current.time);
+      if (Number.isFinite(currentMs)) {
+        let bestDelta = Infinity;
+        data.hourly.time.forEach((time, i) => {
+          const hourMs = Date.parse(time);
+          if (!Number.isFinite(hourMs)) return;
+          const delta = Math.abs(hourMs - currentMs);
+          if (delta < bestDelta) { bestDelta = delta; currentIndex = i; }
+        });
+        // Do not substitute a forecast value if the nearest hour is too far away.
+        if (bestDelta > 30 * 60 * 1000) currentIndex = -1;
+      }
+    }
+    if (currentIndex >= 0) {
+      Object.entries(data.hourly).forEach(([key, values]) => {
+        if (key === "time" || !Array.isArray(values)) return;
+        const existing = data.current[key];
+        const missing = existing === null || existing === undefined ||
+          (typeof existing === "number" && !Number.isFinite(existing));
+        const hourlyValue = values[currentIndex];
+        if (missing && hourlyValue !== null && hourlyValue !== undefined &&
+            !(typeof hourlyValue === "number" && !Number.isFinite(hourlyValue))) {
+          data.current[key] = hourlyValue;
+        }
+      });
+    }
+  }
+  const out = {
+    place: loc.place,
+    region: loc.region,
+    feature: loc.feature,
+    lat: data.latitude !== undefined ? data.latitude : loc.lat,
+    lon: data.longitude !== undefined ? data.longitude : loc.lon,
+    elevation: data.elevation,
+    timezone: data.timezone || "auto",
+    current: data.current,
+    hourly: data.hourly,
+    daily: data.daily
+  };
+  out.trend = pressureTrend(out);
+  return out;
+}
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const data = await json(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=${lang}`
+    );
+    const name = data.city || data.locality || data.principalSubdivision;
+    if (!name) throw new Error("no name");
+    return {
+      lat, lon,
+      place: name,
+      region: [data.principalSubdivision, data.countryName].filter(Boolean).join(", ")
+    };
+  } catch {
+    return { lat, lon, place: t.myLocation, region: "" };
+  }
+}
+
+function fetchTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal })
+    .then(res => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .finally(() => clearTimeout(timer));
+}
+
+async function approximateLocation() {
+  const sources = [
+    { url: "https://ipwho.is/", pick: d => (d && d.success !== false) ? { lat: d.latitude, lon: d.longitude, place: d.city, region: [d.region, d.country].filter(Boolean).join(", ") } : null },
+    { url: "https://get.geojs.io/v1/ip/geo.json", pick: d => d ? { lat: parseFloat(d.latitude), lon: parseFloat(d.longitude), place: d.city, region: [d.region, d.country].filter(Boolean).join(", ") } : null }
+  ];
+  for (const src of sources) {
+    try {
+      const picked = src.pick(await fetchTimeout(src.url, 4000));
+      if (picked && typeof picked.lat === "number" && typeof picked.lon === "number" &&
+          !Number.isNaN(picked.lat) && !Number.isNaN(picked.lon)) {
+        if (!picked.place) picked.place = t.myLocation;
+        return picked;
+      }
+    } catch { /* try next source */ }
+  }
+  return null;
+}
+
+function startLoad(key) {
+  busy = true;
+  selected = null;
+  renderDayPanel();
+  els.go.disabled = true;
+  els.geo.disabled = true;
+  els.current.classList.add("loading");
+  els.forecast.classList.add("loading");
+  setStatus(key);
+}
+
+function endLoad() {
+  busy = false;
+  els.go.disabled = false;
+  els.geo.disabled = false;
+  els.current.classList.remove("loading");
+  els.forecast.classList.remove("loading");
+}
+
+function showFallback() {
+  const data = withFallbackHourly(FALLBACK);
+  data.place = t.pragueName;
+  data.region = t.pragueRegion;
+  render(data);
+  setStatus("offline");
+}
+
+function withFallbackHourly(base) {
+  const time = [], temperature_2m = [], weather_code = [], precipitation_probability = [], wind_speed_10m = [];
+  const apparent_temperature = [], relative_humidity_2m = [], dew_point_2m = [], cloud_cover = [];
+  const visibility = [], wind_direction_10m = [], wind_gusts_10m = [], precipitation = [], uv_index = [], pressure_msl = [];
+  const start = new Date();
+  start.setMinutes(0, 0, 0);
+  const codes = [2, 2, 3, 61, 61, 80, 3, 2, 1, 0, 1, 2];
+  for (let i = 0; i < 26; i++) {
+    const d = new Date(start.getTime() + i * 3600e3);
+    const pad = n => String(n).padStart(2, "0");
+    time.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`);
+    const hour = d.getHours();
+    const temp = Math.round((20 + 4 * Math.sin((hour - 9) / 24 * 2 * Math.PI)) * 10) / 10;
+    temperature_2m.push(temp);
+    apparent_temperature.push(Math.round((temp - 0.8) * 10) / 10);
+    weather_code.push(codes[i % codes.length]);
+    precipitation_probability.push((i * 7) % 60);
+    wind_speed_10m.push(8 + (i % 5) * 1.5);
+    relative_humidity_2m.push(55 + (i * 3) % 35);
+    dew_point_2m.push(Math.round((temp - 8) * 10) / 10);
+    cloud_cover.push((i * 11) % 100);
+    visibility.push(18000 + (i % 6) * 3000);
+    wind_direction_10m.push((190 + i * 9) % 360);
+    wind_gusts_10m.push(16 + (i % 5) * 3.2);
+    precipitation.push(codes[i % codes.length] >= 61 ? Math.round(((i % 4) * 0.4 + 0.2) * 10) / 10 : 0);
+    uv_index.push(hour >= 8 && hour <= 18 ? Math.round(Math.max(0, 4 * Math.sin((hour - 6) / 13 * Math.PI)) * 10) / 10 : 0);
+    pressure_msl.push(Math.round((1018.6 - i * 0.2) * 10) / 10);
+  }
+  return Object.assign({}, base, {
+    hourly: {
+      time, temperature_2m, weather_code, precipitation_probability, wind_speed_10m,
+      apparent_temperature, relative_humidity_2m, dew_point_2m, cloud_cover,
+      visibility, wind_direction_10m, wind_gusts_10m, precipitation, uv_index, pressure_msl
+    }
+  });
+}
+
+async function load(city) {
+  if (busy) return;
+  const coords = parseCoords(city);
+  if (coords) return loadCoords(coords.lat, coords.lon);
+
+  hideResults();
+  startLoad("loading");
+  let matches = null;
+  try {
+    matches = rankResults(await geocodeAll(city));
+    render(await forecast(matches[0]));
+    setStatus("live", nowTime());
+  } catch (err) {
+    if (err.message === "NO_RESULTS") setStatus("noResults", err.city);
+    else if (err.message === "QUERY_TOO_SHORT") setStatus("searchShort");
+    else setStatus("searchFail");
+  } finally {
+    endLoad();
+    if (matches && matches.length > 1) showResults(matches);
+  }
+}
+
+function hideResults() {
+  els.results.hidden = true;
+  els.results.classList.remove("open");
+  els.results.innerHTML = "";
+}
+
+function showResults(list) {
+  els.results.innerHTML = "";
+  list.forEach((r, i) => {
+    const [ico, typeName] = featureOf(r.feature);
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const elev = (typeof r.srcElevation === "number")
+      ? `${Math.round(r.srcElevation)} m` : "";
+    btn.innerHTML =
+      `<span class="r-ico">${ico}</span>` +
+      `<span class="r-main">` +
+        `<span class="r-name">${esc(r.place)}</span>` +
+        `<span class="r-sub">${esc([typeName, r.region].filter(Boolean).join(" · "))}</span>` +
+      `</span>` +
+      `<span class="r-elev">${esc(elev)}</span>`;
+    if (i === 0) btn.style.borderColor = "var(--accent)";
+    btn.addEventListener("click", () => selectResult(r));
+    li.appendChild(btn);
+    els.results.appendChild(li);
+  });
+  els.results.hidden = false;
+  els.results.classList.add("open");
+}
+
+async function selectResult(loc) {
+  if (busy) return;
+  hideResults();
+  startLoad("loading");
+  try {
+    render(await forecast(loc));
+    setStatus("live", nowTime());
+  } catch {
+    setStatus("searchFail");
+  } finally {
+    endLoad();
+  }
+}
+
+async function loadCoords(lat, lon) {
+  if (busy) return;
+  hideResults();
+  startLoad("locating");
+  try {
+    render(await forecast(await reverseGeocode(lat, lon)));
+    setStatus("live", nowTime());
+  } catch {
+    showFallback();
+  } finally {
+    endLoad();
+  }
+}
+
+function useMyLocation() {
+  if (busy) return;
+  if (!navigator.geolocation) return setStatus("noGeo");
+  setStatus("requesting");
+  navigator.geolocation.getCurrentPosition(
+    pos => loadCoords(pos.coords.latitude, pos.coords.longitude),
+    err => setStatus(err.code === err.PERMISSION_DENIED ? "denied" : "geoFail"),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+  );
+}
+
+function switchLanguage() {
+  lang = lang === "en" ? "cs" : "en";
+  t = I18N[lang];
+  localStorage.setItem("weather-lang", lang);
+  hideResults();
+  renderStaticText();
+  renderHelp();
+  if (lastData) render(lastData);
+  if (lastStatus && lastStatus.key === "live") lastStatus.arg = nowTime();
+  refreshStatus();
+}
+
+els.form.addEventListener("submit", e => {
+  e.preventDefault();
+  const city = els.q.value.trim();
+  if (city) load(city);
+});
+
+els.geo.addEventListener("click", useMyLocation);
+els.lang.addEventListener("click", switchLanguage);
+els.detailToggle.addEventListener("click", toggleDetails);
+els.graphToggle.addEventListener("click", () => setGraphMode(!graphMode));
+
+els.viewSwitch.addEventListener("click", e => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) setView(btn.dataset.view);
+});
+
+const DEFAULT_PLACE = () => ({
+  lat: 50.0755, lon: 14.4378,
+  place: t.pragueName, region: t.pragueRegion, feature: "PPLC"
+});
+
+async function boot() {
+  startLoad("detecting");
+  let approx = null;
+  try {
+    approx = await approximateLocation();
+  } catch { /* ignored */ }
+
+  const target = approx || DEFAULT_PLACE();
+  try {
+    render(await forecast(target));
+    setStatus(approx ? "approxNote" : "defaultNote", nowTime());
+  } catch {
+    showFallback();
+  } finally {
+    endLoad();
+  }
+}
+
+const helpPanel = document.getElementById("help-panel");
+document.getElementById("help-toggle").addEventListener("click", () => {
+  helpPanel.hidden = !helpPanel.hidden;
+  document.getElementById("help-toggle").setAttribute("aria-expanded", String(!helpPanel.hidden));
+  if (!helpPanel.hidden) { renderHelp(); helpPanel.scrollIntoView({ behavior: "smooth", block: "start" }); }
+});
+document.getElementById("help-close").addEventListener("click", () => {
+  helpPanel.hidden = true;
+  document.getElementById("help-toggle").setAttribute("aria-expanded", "false");
+  document.getElementById("help-toggle").focus();
+});
+
+// Swipe the basic/detailed current-weather overview through hourly forecast slots.
+let overviewHourIndex = null;
+let overviewTouchStart = null;
+const overviewPanel = els.current;
+function shiftOverviewHour(step) {
+  if (!lastData || !lastData.hourly || !Array.isArray(lastData.hourly.time) || !lastData.hourly.time.length) return;
+  if (overviewHourIndex === null) {
+    const now = Date.now();
+    overviewHourIndex = lastData.hourly.time.findIndex(ts => Date.parse(ts) >= now);
+    if (overviewHourIndex < 0) overviewHourIndex = 0;
+  }
+  overviewHourIndex = Math.max(0, Math.min(lastData.hourly.time.length - 1, overviewHourIndex + step));
+  const idx = overviewHourIndex;
+  const h = lastData.hourly;
+  const current = { ...lastData.current, time: h.time[idx] };
+  ["temperature_2m","relative_humidity_2m","dew_point_2m","apparent_temperature","weather_code","precipitation_probability","precipitation","rain","showers","snowfall","snow_depth","pressure_msl","surface_pressure","cloud_cover","cloud_cover_low","cloud_cover_mid","cloud_cover_high","visibility","wind_speed_10m","wind_direction_10m","wind_gusts_10m","is_day","uv_index","uv_index_clear_sky","shortwave_radiation","direct_radiation","diffuse_radiation","sunshine_duration","wet_bulb_temperature_2m","evapotranspiration","et0_fao_evapotranspiration","vapour_pressure_deficit","cape","lifted_index","convective_inhibition","freezing_level_height","boundary_layer_height","soil_temperature_0_to_7cm","soil_moisture_0_to_7cm","runoff"].forEach(key => {
+    if (Array.isArray(h[key]) && h[key][idx] !== undefined) current[key] = h[key][idx];
+  });
+  const selectedDate = String(h.time[idx]).slice(0, 10);
+  const dailyIndex = Array.isArray(lastData.daily?.time) ? lastData.daily.time.indexOf(selectedDate) : -1;
+  const daily = lastData.daily || {};
+  const atDay = key => dailyIndex >= 0 && Array.isArray(daily[key]) ? daily[key][dailyIndex] : null;
+  const updated = { ...lastData, current, daily: { ...daily,
+    sunrise: daily.sunrise, sunset: daily.sunset, moonrise: daily.moonrise, moonset: daily.moonset, moon_phase: daily.moon_phase
+  }};
+  render(updated);
+  if (dailyIndex >= 0) {
+    els.sunrise.textContent = clockTime(atDay("sunrise"));
+    els.sunset.textContent = clockTime(atDay("sunset"));
+    $("moonrise").textContent = clockTime(atDay("moonrise"));
+    $("moonset").textContent = clockTime(atDay("moonset"));
+    const phase = atDay("moon_phase");
+    $("moonphase").textContent = Number.isFinite(phase) ? moonPhaseText(phase) : "—";
+    $("i-moonphase").textContent = Number.isFinite(phase) ? moonPhaseIcon(phase) : "🌙";
+  }
+  const timeLabel = new Date(h.time[idx]).toLocaleString(t.locale, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  overviewPanel.setAttribute("aria-label", `${t.detailsLabel} · ${timeLabel}`);
+  overviewPanel.title = (lang === "cs" ? "Hodinová předpověď: " : "Hourly forecast: ") + timeLabel + (lang === "cs" ? " · přejeďte vlevo/vpravo" : " · swipe left/right");
+}
+overviewPanel.addEventListener("touchstart", event => {
+  if (!lastData || !event.touches || event.touches.length !== 1) { overviewTouchStart = null; return; }
+  const touch = event.touches[0]; overviewTouchStart = { x: touch.clientX, y: touch.clientY };
+}, { passive: true });
+overviewPanel.addEventListener("touchend", event => {
+  if (!overviewTouchStart || !event.changedTouches || !event.changedTouches.length) { overviewTouchStart = null; return; }
+  const touch = event.changedTouches[0]; const dx = touch.clientX - overviewTouchStart.x; const dy = touch.clientY - overviewTouchStart.y; overviewTouchStart = null;
+  if (Math.abs(dx) >= 55 && Math.abs(dx) > Math.abs(dy) * 1.25) shiftOverviewHour(dx < 0 ? 1 : -1);
+}, { passive: true });
+overviewPanel.addEventListener("touchcancel", () => { overviewTouchStart = null; }, { passive: true });
+
+// Swipe navigation for the opened tile panel is separate from hourly navigation in the overview.
+// The tile grid itself never captures swipe navigation.
+let tileTouchStart = null;
+const swipePanel = els.dayPanel;
+swipePanel.addEventListener("touchstart", event => {
+  if (swipePanel.hidden || !selected || !event.touches || event.touches.length !== 1) {
+    tileTouchStart = null;
+    return;
+  }
+  const touch = event.touches[0];
+  tileTouchStart = { x: touch.clientX, y: touch.clientY };
+}, { passive: true });
+swipePanel.addEventListener("touchend", event => {
+  if (!tileTouchStart || swipePanel.hidden || !selected || !event.changedTouches || !event.changedTouches.length) {
+    tileTouchStart = null;
+    return;
+  }
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - tileTouchStart.x;
+  const dy = touch.clientY - tileTouchStart.y;
+  tileTouchStart = null;
+  if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+  const nextIndex = selected.index + (dx < 0 ? 1 : -1);
+  const visibleTiles = els.forecast.children.length;
+  if (nextIndex < 0 || nextIndex >= visibleTiles) return;
+  selected = { kind: selected.kind, index: nextIndex };
+  updateTileSelection();
+  renderDayPanel();
+  els.dayPanel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}, { passive: true });
+swipePanel.addEventListener("touchcancel", () => { tileTouchStart = null; }, { passive: true });
+
+renderStaticText();
+renderHelp();
+boot();
+
+
+</script>
+</body>
+</html>
